@@ -60,16 +60,16 @@ export default function HealthDashboard() {
 
   return (
     <div className="min-h-screen w-full">
-      <div className="flex-1 space-y-6 p-6">
+      <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">Health Dashboard</h1>
-                <p className="text-muted-foreground">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Health Dashboard</h1>
+                <p className="text-muted-foreground text-sm sm:text-base">
                   Welcome back, {user.name}! Your comprehensive health tracking dashboard.
                 </p>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 sm:space-x-4">
                 <Badge variant="outline" className="text-green-600 border-green-200">
                   <CheckCircle2 className="w-3 h-3 mr-1" />
                   Synced
@@ -96,13 +96,13 @@ export default function HealthDashboard() {
 
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="recovery">Recovery</TabsTrigger>
-                <TabsTrigger value="sleep">Sleep</TabsTrigger>
-                <TabsTrigger value="workouts">Workouts</TabsTrigger>
-                <TabsTrigger value="nutrition">🍎 Nutrition</TabsTrigger> {/* ← CLICK HERE */}
-                <TabsTrigger value="medical">Medical</TabsTrigger>
-                <TabsTrigger value="insights">AI Coach</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto gap-1 p-2">
+                <TabsTrigger value="recovery" className="h-10">Recovery</TabsTrigger>
+                <TabsTrigger value="sleep" className="h-10">Sleep</TabsTrigger>
+                <TabsTrigger value="workouts" className="h-10">Workouts</TabsTrigger>
+                <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger> {/* ← CLICK HERE */}
+                <TabsTrigger value="medical" className="h-10">Medical</TabsTrigger>
+                <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
               </TabsList>
 
               <TabsContent value="recovery" className="space-y-4">

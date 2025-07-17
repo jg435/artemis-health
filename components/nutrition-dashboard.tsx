@@ -425,7 +425,7 @@ export function NutritionDashboard() {
 
       {/* Detailed Analysis */}
       <Tabs defaultValue="macros" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
           <TabsTrigger value="macros">Macros</TabsTrigger>
           <TabsTrigger value="meals">Meals</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>

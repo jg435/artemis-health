@@ -168,7 +168,7 @@ export function HealthRecommendationsPanel({
 
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2">
             <TabsTrigger value="active">Active ({activeRecommendations.length})</TabsTrigger>
             <TabsTrigger value="completed">Completed ({completedRecommendations.length})</TabsTrigger>
           </TabsList>
