@@ -54,18 +54,18 @@ export function NutritionDashboard() {
   const { user } = useAuth()
   const [sessionFoodLogs, setSessionFoodLogs] = useState<any[]>([])
   const [nutritionData, setNutritionData] = useState<NutritionData>({
-    totalCalories: 0,
-    targetCalories: 2200, // Keep target as default
+    totalCalories: 1800,
+    targetCalories: 2500, // Keep target as default
     macros: {
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      fiber: 0,
+      protein: 113, // 25% of 1800 calories / 4 cal per gram
+      carbs: 203,   // 45% of 1800 calories / 4 cal per gram  
+      fat: 60,      // 30% of 1800 calories / 9 cal per gram
+      fiber: 25,
     },
     targetMacros: {
-      protein: 140,
-      carbs: 220,
-      fat: 75,
+      protein: 100,
+      carbs: 120,
+      fat: 60,
     },
     meals: [],
     micronutrients: {
@@ -145,8 +145,59 @@ export function NutritionDashboard() {
   }
 
   const calculateNutritionFromLogs = (foodLogs: any[]) => {
-    // Calculate totals from food logs
-    const totals = foodLogs.reduce((acc: any, log: any) => {
+    // For demo mode, use hardcoded today's values instead of calculating from logs
+    if (user?.isDemo) {
+      // Still show meals from today's logs for the meal breakdown
+      const today = new Date().toISOString().split('T')[0]
+      const todaysLogs = foodLogs.filter(log => {
+        const logDate = new Date(log.logged_at).toISOString().split('T')[0]
+        return logDate === today
+      })
+      
+      // Group meals by type (using today's logs only)
+      const mealsByType = todaysLogs.reduce((acc: any, log: any) => {
+        const mealType = log.meal_type || 'other'
+        if (!acc[mealType]) {
+          acc[mealType] = { calories: 0, time: log.meal_time || '12:00' }
+        }
+        acc[mealType].calories += log.calories || 0
+        return acc
+      }, {})
+      
+      const meals = Object.entries(mealsByType).map(([type, data]: [string, any]) => ({
+        type,
+        calories: data.calories,
+        time: data.time
+      }))
+      
+      // Update nutrition data state with hardcoded values for demo
+      setNutritionData(prev => ({
+        ...prev,
+        totalCalories: 1800,
+        macros: {
+          protein: 113, // 25% of 1800 calories / 4 cal per gram
+          carbs: 203,   // 45% of 1800 calories / 4 cal per gram  
+          fat: 60,      // 30% of 1800 calories / 9 cal per gram
+          fiber: 25,
+        },
+        meals,
+        micronutrients: {
+          ...prev.micronutrients,
+          sodium: 2300,
+        }
+      }))
+      return
+    }
+    
+    // Original logic for non-demo users
+    const today = new Date().toISOString().split('T')[0]
+    const todaysLogs = foodLogs.filter(log => {
+      const logDate = new Date(log.logged_at).toISOString().split('T')[0]
+      return logDate === today
+    })
+    
+    // Calculate totals from today's food logs only
+    const totals = todaysLogs.reduce((acc: any, log: any) => {
       return {
         calories: acc.calories + (log.calories || 0),
         protein: acc.protein + (log.protein_g || 0),
@@ -157,8 +208,8 @@ export function NutritionDashboard() {
       }
     }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0 })
     
-    // Group meals by type
-    const mealsByType = foodLogs.reduce((acc: any, log: any) => {
+    // Group meals by type (using today's logs only)
+    const mealsByType = todaysLogs.reduce((acc: any, log: any) => {
       const mealType = log.meal_type || 'other'
       if (!acc[mealType]) {
         acc[mealType] = { calories: 0, time: log.meal_time || '12:00' }
@@ -211,7 +262,7 @@ export function NutritionDashboard() {
         
         // Use demo data if user is in demo mode
         const endpoint = user?.isDemo 
-          ? '/api/demo/nutrition'
+          ? `/api/demo/nutrition?date=${dateString}`
           : `/api/food-logs?date=${dateString}`
         const response = await fetch(endpoint)
         let dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 }

@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
       const awakeDurationMs = (15 + Math.random() * 45) * 60 * 1000 // 15-60 min awake
       const totalInBedMs = sleepDurationMs + awakeDurationMs
       
-      const sleepPerformance = 0.7 + (Math.random() * 0.25) // 70-95%
-      const sleepEfficiency = 0.8 + (Math.random() * 0.15) // 80-95%
+      const sleepPerformance = 70 + Math.round(Math.random() * 20) // 70-90
+      const sleepEfficiency = 70 + Math.round(Math.random() * 20) // 70-90
       
       // Sleep stages (percentages of total sleep time)
       const remPercent = 0.20 + (Math.random() * 0.1) // 20-30%

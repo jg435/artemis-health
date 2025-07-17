@@ -82,8 +82,8 @@ export function SleepAnalysis() {
 
   const latestSleep = {
     "Asleep duration (min)": Math.round((whoopData[0].score.stage_summary.total_in_bed_time_milli - whoopData[0].score.stage_summary.total_awake_time_milli) / 60000),
-    "Sleep performance %": Math.round(whoopData[0].score.sleep_performance_percentage * 100) / 100,
-    "Sleep efficiency %": Math.round(whoopData[0].score.sleep_efficiency_percentage * 100) / 100,
+    "Sleep performance %": whoopData[0].score.sleep_performance_percentage,
+    "Sleep efficiency %": whoopData[0].score.sleep_efficiency_percentage,
     "Sleep debt (min)": Math.round(whoopData[0].score.sleep_needed.need_from_sleep_debt_milli / 60000),
     "Light sleep duration (min)": Math.round(whoopData[0].score.stage_summary.total_light_sleep_time_milli / 60000),
     "Deep (SWS) duration (min)": Math.round(whoopData[0].score.stage_summary.total_slow_wave_sleep_time_milli / 60000),
@@ -98,8 +98,8 @@ export function SleepAnalysis() {
     .map((item) => ({
       date: new Date(item.start).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       duration: Math.round(((item.score.stage_summary.total_in_bed_time_milli - item.score.stage_summary.total_awake_time_milli) / 60000 / 60) * 100) / 100, // Hours with 2 decimal places
-      efficiency: Math.round(item.score.sleep_efficiency_percentage * 100) / 100,
-      performance: Math.round(item.score.sleep_performance_percentage * 100) / 100,
+      efficiency: item.score.sleep_efficiency_percentage,
+      performance: item.score.sleep_performance_percentage,
       debt: Math.round(item.score.sleep_needed.need_from_sleep_debt_milli / 60000), // Whole number minutes
     }))
 

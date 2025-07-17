@@ -101,7 +101,21 @@ export async function getMedicalLabResults(userId?: string, user?: User) {
         }
       });
       if (response.ok) {
-        return await response.json();
+        const rawData = await response.json();
+        // Transform nested structure to flat structure expected by frontend
+        const flatResults = [];
+        for (const panel of rawData) {
+          for (const [testName, testData] of Object.entries(panel.results)) {
+            flatResults.push({
+              "Test Name": testName,
+              "Result": testData.value,
+              "Unit": testData.unit,
+              "Reference Range": testData.reference_range,
+              "Flag": testData.status === "normal" ? "Normal" : testData.status
+            });
+          }
+        }
+        return flatResults;
       }
       return [];
     }

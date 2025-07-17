@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       date.setDate(date.getDate() - i)
       
       // Generate realistic but varied recovery data
-      const recoveryScore = 0.65 + (Math.random() * 0.3) // 65-95% range
+      const recoveryScore = 30 + Math.round(Math.random() * 60) // 30-90 range
       const hrv = 35 + (Math.random() * 25) // 35-60ms range
       const rhr = 52 + (Math.random() * 12) // 52-64 bpm range
       const strain = 8 + (Math.random() * 8) // 8-16 strain range
