@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
     ? 'http://localhost:3000/api/auth/whoop/callback'
     : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/whoop/callback';
   
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('isLocal:', isLocal);
   console.log('Redirect URI being sent to Whoop:', redirectUri);
   
   if (!clientId || !redirectUri) {
