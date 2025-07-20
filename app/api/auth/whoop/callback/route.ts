@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/?error=invalid_session', baseUrl));
     }
 
-    // Dynamically construct redirect URI based on current host
-    const redirectUri = `${baseUrl}/api/auth/whoop/callback`;
+    // Use static redirect URI from environment variables
+    const redirectUri = process.env.WHOOP_REDIRECT_URI;
 
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
