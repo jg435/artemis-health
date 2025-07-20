@@ -42,8 +42,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/?error=invalid_session', baseUrl));
     }
 
-    // Use static redirect URI from environment variables
-    const redirectUri = process.env.WHOOP_REDIRECT_URI;
+    // Use production URL by default, localhost only for local development
+    const isLocal = process.env.NODE_ENV === 'development';
+    const redirectUri = isLocal 
+      ? 'http://localhost:3000/api/auth/whoop/callback'
+      : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/whoop/callback';
 
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {

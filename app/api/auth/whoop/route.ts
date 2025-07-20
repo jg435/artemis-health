@@ -20,7 +20,12 @@ export async function GET(request: NextRequest) {
     // Continue with normal flow if user check fails
   }
   const clientId = process.env.WHOOP_CLIENT_ID;
-  const redirectUri = process.env.WHOOP_REDIRECT_URI;
+  
+  // Use production URL by default, localhost only for local development
+  const isLocal = process.env.NODE_ENV === 'development';
+  const redirectUri = isLocal 
+    ? 'http://localhost:3000/api/auth/whoop/callback'
+    : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/whoop/callback';
   
   console.log('Redirect URI being sent to Whoop:', redirectUri);
   
