@@ -9,18 +9,23 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
+  // Get host and protocol for consistent redirects
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const baseUrl = `${protocol}://${host}`;
+
   if (error) {
-    return NextResponse.redirect(new URL('/?error=whoop_auth_denied', request.url));
+    return NextResponse.redirect(new URL('/?error=whoop_auth_denied', baseUrl));
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL('/?error=whoop_auth_failed', request.url));
+    return NextResponse.redirect(new URL('/?error=whoop_auth_failed', baseUrl));
   }
 
   // Verify state parameter
   const storedState = request.cookies.get('whoop_oauth_state')?.value;
   if (!storedState || storedState !== state) {
-    return NextResponse.redirect(new URL('/?error=whoop_auth_invalid_state', request.url));
+    return NextResponse.redirect(new URL('/?error=whoop_auth_invalid_state', baseUrl));
   }
 
   try {
@@ -29,13 +34,16 @@ export async function GET(request: NextRequest) {
     const userSession = request.cookies.get('user_session')?.value;
     
     if (!userSession) {
-      return NextResponse.redirect(new URL('/?error=not_authenticated', request.url));
+      return NextResponse.redirect(new URL('/?error=not_authenticated', baseUrl));
     }
 
     const user = await authService.getUser(userSession);
     if (!user) {
-      return NextResponse.redirect(new URL('/?error=invalid_session', request.url));
+      return NextResponse.redirect(new URL('/?error=invalid_session', baseUrl));
     }
+
+    // Dynamically construct redirect URI based on current host
+    const redirectUri = `${baseUrl}/api/auth/whoop/callback`;
 
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
@@ -47,7 +55,7 @@ export async function GET(request: NextRequest) {
         grant_type: 'authorization_code',
         client_id: process.env.WHOOP_CLIENT_ID!,
         client_secret: process.env.WHOOP_CLIENT_SECRET!,
-        redirect_uri: process.env.WHOOP_REDIRECT_URI!,
+        redirect_uri: redirectUri,
         code,
       }),
     });
@@ -75,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Set up response
-    const response = NextResponse.redirect(new URL('/?whoop_connected=true', request.url));
+    const response = NextResponse.redirect(new URL('/?whoop_connected=true', baseUrl));
     
     // Set short-term cookie for immediate use
     response.cookies.set('whoop_access_token', tokens.access_token, {
@@ -91,6 +99,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Whoop OAuth error:', error);
-    return NextResponse.redirect(new URL('/?error=whoop_auth_failed', request.url));
+    return NextResponse.redirect(new URL('/?error=whoop_auth_failed', baseUrl));
   }
 }

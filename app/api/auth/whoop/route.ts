@@ -20,7 +20,15 @@ export async function GET(request: NextRequest) {
     // Continue with normal flow if user check fails
   }
   const clientId = process.env.WHOOP_CLIENT_ID;
-  const redirectUri = process.env.WHOOP_REDIRECT_URI;
+  
+  // Dynamically construct redirect URI based on current host
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const redirectUri = `${protocol}://${host}/api/auth/whoop/callback`;
+  
+  console.log('Host:', host);
+  console.log('Protocol:', protocol);
+  console.log('Redirect URI being sent to Whoop:', redirectUri);
   
   if (!clientId || !redirectUri) {
     return NextResponse.json(

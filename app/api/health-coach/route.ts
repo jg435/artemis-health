@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       })
     }
 
-    const healthData = await fetchUserHealthData()
+    const healthData = await fetchUserHealthData(request)
 
     const openrouterApiKey = process.env.OPENROUTER_API_KEY
     if (!openrouterApiKey) {
@@ -108,13 +108,17 @@ Please provide a helpful, personalized response based on the user's health track
 }
 
 // --- Your existing helper functions unchanged ---
-async function fetchUserHealthData() {
+async function fetchUserHealthData(request: Request) {
+  // Get the origin from request headers
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const origin = `${protocol}://${host}`;
   try {
     const healthData: any = {}
 
     // Fetch Whoop data from API endpoints (same as dashboard)
     try {
-      const recoveryResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/recovery?limit=7`)
+      const recoveryResponse = await fetch(`${origin}/api/whoop/recovery?limit=7`)
       if (recoveryResponse.ok) {
         const recoveryData = await recoveryResponse.json()
         healthData.recovery = recoveryData.records || []
@@ -125,7 +129,7 @@ async function fetchUserHealthData() {
     }
 
     try {
-      const sleepResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/sleep?limit=7`)
+      const sleepResponse = await fetch(`${origin}/api/whoop/sleep?limit=7`)
       if (sleepResponse.ok) {
         const sleepData = await sleepResponse.json()
         healthData.sleep = sleepData.records || []
@@ -136,7 +140,7 @@ async function fetchUserHealthData() {
     }
 
     try {
-      const workoutResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/workouts?limit=10`)
+      const workoutResponse = await fetch(`${origin}/api/whoop/workouts?limit=10`)
       if (workoutResponse.ok) {
         const workoutData = await workoutResponse.json()
         healthData.workouts = workoutData.records || []

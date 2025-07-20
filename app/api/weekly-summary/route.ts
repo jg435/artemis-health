@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const { userId } = await request.json()
 
     // Fetch comprehensive health data for the past week
-    const healthData = await fetchWeeklyHealthData(userId)
+    const healthData = await fetchWeeklyHealthData(userId, request)
 
     // Generate AI-powered weekly summary using OpenRouter
     const openrouterApiKey = process.env.OPENROUTER_API_KEY
@@ -89,13 +89,17 @@ Please provide a comprehensive but concise weekly summary with specific insights
   }
 }
 
-async function fetchWeeklyHealthData(userId: string) {
+async function fetchWeeklyHealthData(userId: string, request: Request) {
+  // Get the origin from request headers
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const origin = `${protocol}://${host}`;
   try {
     const healthData: any = {}
 
     // Fetch Whoop data from API endpoints (same as health coach)
     try {
-      const recoveryResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/recovery?limit=14`)
+      const recoveryResponse = await fetch(`${origin}/api/whoop/recovery?limit=14`)
       if (recoveryResponse.ok) {
         const recoveryData = await recoveryResponse.json()
         healthData.recovery = recoveryData.records || []
@@ -106,7 +110,7 @@ async function fetchWeeklyHealthData(userId: string) {
     }
 
     try {
-      const sleepResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/sleep?limit=14`)
+      const sleepResponse = await fetch(`${origin}/api/whoop/sleep?limit=14`)
       if (sleepResponse.ok) {
         const sleepData = await sleepResponse.json()
         healthData.sleep = sleepData.records || []
@@ -117,7 +121,7 @@ async function fetchWeeklyHealthData(userId: string) {
     }
 
     try {
-      const workoutResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/whoop/workouts?limit=20`)
+      const workoutResponse = await fetch(`${origin}/api/whoop/workouts?limit=20`)
       if (workoutResponse.ok) {
         const workoutData = await workoutResponse.json()
         healthData.workouts = workoutData.records || []
