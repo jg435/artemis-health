@@ -5,14 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { Activity, Flame, Clock, MapPin, Zap } from "lucide-react"
-import type { WhoopWorkout } from "@/lib/whoop"
+import { WearableService, type UnifiedActivityData, type WearableType } from "@/lib/wearable-service"
 import { useAuth } from "@/context/auth-context"
 
 export function WorkoutAnalysis() {
   const { user } = useAuth()
-  const [whoopData, setWhoopData] = useState<WhoopWorkout[]>([])
+  const [activityData, setActivityData] = useState<UnifiedActivityData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
+  const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
     fetchData()
@@ -20,23 +21,49 @@ export function WorkoutAnalysis() {
 
   const fetchData = async () => {
     try {
-      // Use demo data if user is in demo mode
-      const endpoint = user?.isDemo ? '/api/demo/whoop/workouts' : '/api/whoop/workouts?limit=10'
-      const whoopResponse = await fetch(endpoint)
-      
-      if (whoopResponse.ok) {
-        const whoopResult = await whoopResponse.json()
-        console.log("result from whoopresult:", whoopResult)
-        setWhoopData(whoopResult.records || [])
-        setIsConnected(true)
+      if (user?.isDemo) {
+        // Use demo data if user is in demo mode - keeping Whoop structure for demo
+        const endpoint = '/api/demo/whoop/workouts'
+        const response = await fetch(endpoint)
+        
+        if (response.ok) {
+          const result = await response.json()
+          const whoopRecords = result.records || []
+          
+          // Convert Whoop demo data to unified format
+          const demoData: UnifiedActivityData[] = whoopRecords.map((record: any) => ({
+            source: 'whoop' as const,
+            date: record.start.split('T')[0],
+            strain: record.score.strain,
+            calories: Math.round(record.score.kilojoule / 4.184), // Convert kJ to calories
+            distance: record.score.distance_meter,
+            averageHeartRate: record.score.average_heart_rate,
+            maxHeartRate: record.score.max_heart_rate,
+          }))
+          
+          setActivityData(demoData)
+          setConnectedWearable('whoop')
+          setIsConnected(true)
+        } else {
+          setIsConnected(false)
+        }
       } else {
-        setIsConnected(false)
-        setWhoopData([])
+        // Use unified wearable service for real users
+        const wearable = await WearableService.getConnectedWearable()
+        setConnectedWearable(wearable)
+        
+        if (wearable) {
+          const data = await WearableService.getActivityData()
+          setActivityData(data)
+          setIsConnected(data.length > 0)
+        } else {
+          setIsConnected(false)
+        }
       }
     } catch (error) {
-      console.log("Whoop workout data not available")
+      console.log("Activity data not available:", error)
       setIsConnected(false)
-      setWhoopData([])
+      setActivityData([])
     } finally {
       setLoading(false)
     }
@@ -59,81 +86,42 @@ export function WorkoutAnalysis() {
     )
   }
 
-  if (!isConnected || whoopData.length === 0) {
+  if (!isConnected || activityData.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">Connect Your Whoop Device</h3>
+          <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop device to view workout analysis and strain data
+            Connect your Whoop or Oura device to view activity and workout data
           </p>
         </div>
       </div>
     )
   }
 
-  const recentWorkouts = whoopData.slice(0, 7).map(workout => {
-    const durationMinutes = Math.round((new Date(workout.end).getTime() - new Date(workout.start).getTime()) / 60000)
-    return {
-      "Workout start time": workout.start,
-      "Duration (min)": durationMinutes, // Whole number minutes
-      "Activity name": workout.sport_name,
-      "Activity Strain": Math.round(workout.score.strain * 100) / 100, // 2 decimal places
-      "Energy burned (cal)": Math.round((workout.score.kilojoule * 0.239006) * 100) / 100, // 2 decimal places
-      "Max HR (bpm)": Math.round(workout.score.max_heart_rate),
-      "Average HR (bpm)": Math.round(workout.score.average_heart_rate),
-      "HR Zone 1 %": 0, // These would need to be calculated from zone_duration
-      "HR Zone 2 %": 0,
-      "HR Zone 3 %": 0,
-      "Distance (meters)": workout.score.distance_meter ? workout.score.distance_meter.toString() : "0",
-      "GPS enabled": (workout.score.distance_meter || 0) > 0
-    }
-  })
+  const latestActivity = activityData[0]
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
 
-  // Group workouts by date and aggregate metrics
-  const workoutsByDate = whoopData.reduce((acc: { [key: string]: any }, workout) => {
-    const dateKey = new Date(workout.start).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    const durationMinutes = Math.round((new Date(workout.end).getTime() - new Date(workout.start).getTime()) / 60000)
-    const calories = Math.round((workout.score.kilojoule * 0.239006) * 100) / 100
-    
-    if (!acc[dateKey]) {
-      acc[dateKey] = {
-        date: dateKey,
-        strain: 0,
-        calories: 0,
-        duration: 0,
-        workoutCount: 0,
-        totalAvgHR: 0,
-        maxHR: 0,
-      }
-    }
-    
-    acc[dateKey].strain += workout.score.strain
-    acc[dateKey].calories += calories
-    acc[dateKey].duration += durationMinutes
-    acc[dateKey].workoutCount += 1
-    acc[dateKey].totalAvgHR += workout.score.average_heart_rate
-    acc[dateKey].maxHR = Math.max(acc[dateKey].maxHR, workout.score.max_heart_rate)
-    
-    return acc
-  }, {})
-
-  const chartData = Object.values(workoutsByDate)
-    .slice(-7) // Last 7 days
-    .map((day: any) => ({
-      date: day.date,
-      strain: Math.round(day.strain * 100) / 100,
-      calories: Math.round(day.calories * 100) / 100,
-      duration: day.duration,
-      avgHR: Math.round(day.totalAvgHR / day.workoutCount),
-      maxHR: Math.round(day.maxHR),
-      workoutCount: day.workoutCount
+  // Chart data for activity trends
+  const chartData = activityData
+    .slice()
+    .reverse()
+    .map((item) => ({
+      date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      calories: item.calories,
+      strain: item.strain || 0,
+      steps: item.steps || 0,
+      distance: item.distance ? Math.round(item.distance / 1000 * 100) / 100 : 0, // Convert to km
+      avgHR: item.averageHeartRate || 0,
+      maxHR: item.maxHeartRate || 0,
     }))
 
-  const totalCalories = Math.round(recentWorkouts.reduce((sum, workout) => sum + (workout["Energy burned (cal)"] || 0), 0) * 100) / 100
-  const totalDuration = recentWorkouts.reduce((sum, workout) => sum + (workout["Duration (min)"] || 0), 0) // Whole number minutes
-  const avgStrain = Math.round((recentWorkouts.reduce((sum, workout) => sum + (workout["Activity Strain"] || 0), 0) / recentWorkouts.length) * 100) / 100
+  // Calculate totals from recent activity data
+  const totalCalories = activityData.slice(0, 7).reduce((sum, activity) => sum + activity.calories, 0)
+  const avgStrain = connectedWearable === 'whoop' 
+    ? activityData.slice(0, 7).reduce((sum, activity) => sum + (activity.strain || 0), 0) / Math.min(activityData.length, 7)
+    : latestActivity?.score || 0
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60)
@@ -161,19 +149,25 @@ export function WorkoutAnalysis() {
       <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
         <Zap className="h-4 w-4 text-blue-600" />
         <span className="text-sm text-blue-800 dark:text-blue-200">
-          Displaying real-time workout data from your Whoop device
+          Displaying real-time activity data from your {wearableName} device
         </span>
       </div>
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Weekly Strain</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {connectedWearable === 'whoop' ? 'Weekly Strain' : 'Activity Score'}
+            </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getStrainColor(avgStrain)}`}>{avgStrain}</div>
-            <p className="text-xs text-muted-foreground mt-1">{getStrainLevel(avgStrain)} intensity</p>
+            <div className={`text-2xl font-bold ${getStrainColor(avgStrain)}`}>
+              {connectedWearable === 'whoop' ? avgStrain.toFixed(1) : Math.round(avgStrain)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {connectedWearable === 'whoop' ? `${getStrainLevel(avgStrain)} intensity` : 'Average activity score'}
+            </p>
           </CardContent>
         </Card>
 
@@ -184,31 +178,76 @@ export function WorkoutAnalysis() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalCalories.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Last 7 workouts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Duration</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatDuration(totalDuration)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Last 7 workouts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Workouts</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{recentWorkouts.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Last 7 days</p>
           </CardContent>
         </Card>
+
+        {connectedWearable === 'whoop' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Duration</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">N/A</div>
+              <p className="text-xs text-muted-foreground mt-1">Available with Whoop demo data</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {connectedWearable === 'oura' && latestActivity?.steps && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Daily Steps</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{latestActivity.steps.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">Latest day</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {connectedWearable === 'oura' && latestActivity?.distance && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Distance</CardTitle>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{(latestActivity.distance / 1000).toFixed(1)} km</div>
+              <p className="text-xs text-muted-foreground mt-1">Latest day</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {connectedWearable === 'whoop' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Workouts</CardTitle>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activityData.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Last 7 days</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {connectedWearable === 'oura' && latestActivity?.heartRateZones && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">HR Zones</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {Object.values(latestActivity.heartRateZones).filter(zone => zone && zone > 0).length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Active zones today</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Charts */}
@@ -238,19 +277,38 @@ export function WorkoutAnalysis() {
         <Card>
           <CardHeader>
             <CardTitle>Heart Rate Zones</CardTitle>
-            <CardDescription>Average and max heart rate trends</CardDescription>
+            <CardDescription>
+              {connectedWearable === 'oura' ? 'Time spent in each heart rate zone' : 'Average and max heart rate trends'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="avgHR" stroke="#8884d8" strokeWidth={2} name="Avg HR" />
-                  <Line type="monotone" dataKey="maxHR" stroke="#82ca9d" strokeWidth={2} name="Max HR" />
-                </LineChart>
+                {connectedWearable === 'oura' && latestActivity?.heartRateZones ? (
+                  <BarChart data={[
+                    { zone: 'Zone 1', time: (latestActivity.heartRateZones.zone1 || 0) / 60, color: '#8884d8' },
+                    { zone: 'Zone 2', time: (latestActivity.heartRateZones.zone2 || 0) / 60, color: '#82ca9d' },
+                    { zone: 'Zone 3', time: (latestActivity.heartRateZones.zone3 || 0) / 60, color: '#ffc658' },
+                    { zone: 'Zone 4', time: (latestActivity.heartRateZones.zone4 || 0) / 60, color: '#ff7c7c' },
+                    { zone: 'Zone 5', time: (latestActivity.heartRateZones.zone5 || 0) / 60, color: '#8dd1e1' },
+                    { zone: 'Zone 6', time: (latestActivity.heartRateZones.zone6 || 0) / 60, color: '#d084d0' },
+                  ].filter(item => item.time > 0)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="zone" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => [`${Math.round(value as number)} min`, 'Time in Zone']} />
+                    <Bar dataKey="time" fill="#8884d8" />
+                  </BarChart>
+                ) : (
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="avgHR" stroke="#8884d8" strokeWidth={2} name="Avg HR" />
+                    <Line type="monotone" dataKey="maxHR" stroke="#82ca9d" strokeWidth={2} name="Max HR" />
+                  </LineChart>
+                )}
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -265,39 +323,48 @@ export function WorkoutAnalysis() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentWorkouts.slice(0, 5).map((workout, index) => (
+            {activityData.slice(0, 5).map((activity, index) => (
               <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
                     <Activity className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-medium">{workout["Activity name"] || "Workout"}</p>
+                    <p className="font-medium">
+                      {connectedWearable === 'whoop' ? 'Workout' : 'Daily Activity'}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(workout["Workout start time"]).toLocaleDateString()} •{" "}
-                      {formatDuration(workout["Duration (min)"])}
+                      {new Date(activity.date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center space-x-4">
                     <div>
-                      <p className="text-sm font-medium">{workout["Energy burned (cal)"]} cal</p>
+                      <p className="text-sm font-medium">{activity.calories} cal</p>
                       <p className="text-xs text-muted-foreground">
-                        Strain: {workout["Activity Strain"] || "0.00"}
+                        {connectedWearable === 'whoop' ? `Strain: ${activity.strain?.toFixed(1) || "0.0"}` : 
+                         activity.steps ? `${activity.steps.toLocaleString()} steps` : 'Activity'}
                       </p>
                     </div>
-                    <Badge
-                      variant={
-                        (workout["Activity Strain"] || 0) >= 14
-                          ? "destructive"
-                          : (workout["Activity Strain"] || 0) >= 10
-                            ? "default"
-                            : "secondary"
-                      }
-                    >
-                      {getStrainLevel(workout["Activity Strain"] || 0)}
-                    </Badge>
+                    {(connectedWearable === 'whoop' && activity.strain) && (
+                      <Badge
+                        variant={
+                          activity.strain >= 14
+                            ? "destructive"
+                            : activity.strain >= 10
+                              ? "default"
+                              : "secondary"
+                        }
+                      >
+                        {getStrainLevel(activity.strain)}
+                      </Badge>
+                    )}
+                    {connectedWearable === 'oura' && activity.score && (
+                      <Badge variant="default">
+                        Score: {activity.score}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>

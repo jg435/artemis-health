@@ -5,14 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { Moon, Clock, TrendingUp, Zap } from "lucide-react"
-import type { WhoopSleep } from "@/lib/whoop"
+import { WearableService, type UnifiedSleepData, type WearableType } from "@/lib/wearable-service"
 import { useAuth } from "@/context/auth-context"
 
 export function SleepAnalysis() {
   const { user, isLoading: authLoading } = useAuth()
-  const [whoopData, setWhoopData] = useState<WhoopSleep[]>([])
+  const [sleepData, setSleepData] = useState<UnifiedSleepData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
+  const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
     if (!authLoading && user !== null) {
@@ -22,28 +23,56 @@ export function SleepAnalysis() {
     }
   }, [user, authLoading])
 
-  const fetchData = async (retryCount = 0) => {
+  const fetchData = async () => {
     try {
-      // Use demo data if user is in demo mode
-      const endpoint = user?.isDemo ? '/api/demo/whoop/sleep' : '/api/whoop/sleep?limit=7'
-      const whoopResponse = await fetch(endpoint)
-      
-      if (whoopResponse.ok) {
-        const whoopResult = await whoopResponse.json()
-        setWhoopData(whoopResult.records || [])
-        setIsConnected(true)
-      } else if (whoopResponse.status === 401 && retryCount < 2) {
-        // Retry on auth failures up to 2 times with delay
-        setTimeout(() => fetchData(retryCount + 1), 1000)
-        return
+      if (user?.isDemo) {
+        // Use demo data if user is in demo mode - keeping Whoop structure for demo
+        const endpoint = '/api/demo/whoop/sleep'
+        const response = await fetch(endpoint)
+        
+        if (response.ok) {
+          const result = await response.json()
+          const whoopRecords = result.records || []
+          
+          // Convert Whoop demo data to unified format
+          const demoData: UnifiedSleepData[] = whoopRecords.map((record: any) => ({
+            source: 'whoop' as const,
+            date: record.start.split('T')[0],
+            score: record.score.sleep_performance_percentage,
+            duration: Math.round(record.score.stage_summary.total_in_bed_time_milli / (1000 * 60)),
+            efficiency: record.score.sleep_efficiency_percentage,
+            stages: {
+              deep: Math.round(record.score.stage_summary.total_slow_wave_sleep_time_milli / (1000 * 60)),
+              light: Math.round(record.score.stage_summary.total_light_sleep_time_milli / (1000 * 60)),
+              rem: Math.round(record.score.stage_summary.total_rem_sleep_time_milli / (1000 * 60)),
+              awake: Math.round(record.score.stage_summary.total_awake_time_milli / (1000 * 60)),
+            },
+            respiratoryRate: record.score.respiratory_rate
+          }))
+          
+          setSleepData(demoData)
+          setConnectedWearable('whoop')
+          setIsConnected(true)
+        } else {
+          setIsConnected(false)
+        }
       } else {
-        setIsConnected(false)
-        setWhoopData([])
+        // Use unified wearable service for real users
+        const wearable = await WearableService.getConnectedWearable()
+        setConnectedWearable(wearable)
+        
+        if (wearable) {
+          const data = await WearableService.getSleepData()
+          setSleepData(data)
+          setIsConnected(data.length > 0)
+        } else {
+          setIsConnected(false)
+        }
       }
     } catch (error) {
-      console.log("Whoop sleep data not available")
+      console.log("Sleep data not available:", error)
       setIsConnected(false)
-      setWhoopData([])
+      setSleepData([])
     } finally {
       setLoading(false)
     }
@@ -66,50 +95,40 @@ export function SleepAnalysis() {
     )
   }
 
-  if (!isConnected || whoopData.length === 0) {
+  if (!isConnected || sleepData.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Moon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">Connect Your Whoop Device</h3>
+          <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop device to view detailed sleep analysis
+            Connect your Whoop or Oura device to view detailed sleep analysis
           </p>
         </div>
       </div>
     )
   }
 
-  const latestSleep = {
-    "Asleep duration (min)": Math.round((whoopData[0].score.stage_summary.total_in_bed_time_milli - whoopData[0].score.stage_summary.total_awake_time_milli) / 60000),
-    "Sleep performance %": whoopData[0].score.sleep_performance_percentage,
-    "Sleep efficiency %": whoopData[0].score.sleep_efficiency_percentage,
-    "Sleep debt (min)": Math.round(whoopData[0].score.sleep_needed.need_from_sleep_debt_milli / 60000),
-    "Light sleep duration (min)": Math.round(whoopData[0].score.stage_summary.total_light_sleep_time_milli / 60000),
-    "Deep (SWS) duration (min)": Math.round(whoopData[0].score.stage_summary.total_slow_wave_sleep_time_milli / 60000),
-    "REM duration (min)": Math.round(whoopData[0].score.stage_summary.total_rem_sleep_time_milli / 60000),
-    "Awake duration (min)": Math.round(whoopData[0].score.stage_summary.total_awake_time_milli / 60000),
-    "Respiratory rate (rpm)": Math.round(whoopData[0].score.respiratory_rate * 100) / 100
-  }
+  const latestSleep = sleepData[0]
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
 
-  const chartData = whoopData
+  const chartData = sleepData
     .slice()
     .reverse()
     .map((item) => ({
-      date: new Date(item.start).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      duration: Math.round(((item.score.stage_summary.total_in_bed_time_milli - item.score.stage_summary.total_awake_time_milli) / 60000 / 60) * 100) / 100, // Hours with 2 decimal places
-      efficiency: item.score.sleep_efficiency_percentage,
-      performance: item.score.sleep_performance_percentage,
-      debt: Math.round(item.score.sleep_needed.need_from_sleep_debt_milli / 60000), // Whole number minutes
+      date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      duration: Math.round((item.duration / 60) * 100) / 100, // Hours with 2 decimal places
+      efficiency: item.efficiency,
+      performance: item.score,
     }))
 
-  const sleepStagesData = latestSleep
+  const sleepStagesData = latestSleep?.stages
     ? [
-        { name: "Light Sleep", value: latestSleep["Light sleep duration (min)"], color: "#8884d8" },
-        { name: "Deep Sleep", value: latestSleep["Deep (SWS) duration (min)"], color: "#82ca9d" },
-        { name: "REM Sleep", value: latestSleep["REM duration (min)"], color: "#ffc658" },
-        { name: "Awake", value: latestSleep["Awake duration (min)"], color: "#ff7c7c" },
-      ]
+        { name: "Light Sleep", value: latestSleep.stages.light || 0, color: "#8884d8" },
+        { name: "Deep Sleep", value: latestSleep.stages.deep || 0, color: "#82ca9d" },
+        { name: "REM Sleep", value: latestSleep.stages.rem || 0, color: "#ffc658" },
+        { name: "Awake", value: latestSleep.stages.awake || 0, color: "#ff7c7c" },
+      ].filter(stage => stage.value > 0)
     : []
 
   const formatTime = (minutes: number) => {
@@ -125,7 +144,7 @@ export function SleepAnalysis() {
     return { label: "Poor", color: "text-red-600" }
   }
 
-  const sleepQuality = getSleepQuality(latestSleep?.["Sleep performance %"] || 0)
+  const sleepQuality = getSleepQuality(latestSleep?.score || 0)
 
   return (
     <div className="space-y-6">
@@ -133,7 +152,7 @@ export function SleepAnalysis() {
       <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
         <Zap className="h-4 w-4 text-blue-600" />
         <span className="text-sm text-blue-800 dark:text-blue-200">
-          Displaying real-time sleep data from your Whoop device
+          Displaying real-time sleep data from your {wearableName} device
         </span>
       </div>
       {/* Key Metrics */}
@@ -145,7 +164,7 @@ export function SleepAnalysis() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {latestSleep ? formatTime(latestSleep["Asleep duration (min)"]) : "0h 0m"}
+              {latestSleep ? formatTime(latestSleep.duration) : "0h 0m"}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Last night</p>
           </CardContent>
@@ -158,9 +177,9 @@ export function SleepAnalysis() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${sleepQuality.color}`}>
-              {latestSleep?.["Sleep performance %"] || 0}%
+              {latestSleep?.score || 0}%
             </div>
-            <Progress value={latestSleep?.["Sleep performance %"] || 0} className="mt-2" />
+            <Progress value={latestSleep?.score || 0} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-1">{sleepQuality.label}</p>
           </CardContent>
         </Card>
@@ -171,23 +190,23 @@ export function SleepAnalysis() {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{latestSleep?.["Sleep efficiency %"] || 0}%</div>
-            <Progress value={latestSleep?.["Sleep efficiency %"] || 0} className="mt-2" />
+            <div className="text-2xl font-bold">{latestSleep?.efficiency || 0}%</div>
+            <Progress value={latestSleep?.efficiency || 0} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-1">Time asleep vs. in bed</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sleep Debt</CardTitle>
+            <CardTitle className="text-sm font-medium">Sleep Quality</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {latestSleep ? formatTime(Math.abs(latestSleep["Sleep debt (min)"])) : "0h 0m"}
+            <div className={`text-2xl font-bold ${sleepQuality.color}`}>
+              {sleepQuality.label}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {(latestSleep?.["Sleep debt (min)"] || 0) > 0 ? "Sleep deficit" : "Well rested"}
+              Based on {connectedWearable === 'oura' ? 'sleep score' : 'performance'}
             </p>
           </CardContent>
         </Card>
@@ -246,49 +265,51 @@ export function SleepAnalysis() {
         </Card>
       </div>
 
-      {/* Sleep Details */}
+      {/* Sleep Details - Only show if data is available */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Deep Sleep</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {latestSleep ? formatTime(latestSleep["Deep (SWS) duration (min)"]) : "0h 0m"}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {latestSleep
-                ? `${Math.round((latestSleep["Deep (SWS) duration (min)"] / latestSleep["Asleep duration (min)"]) * 100)}% of sleep`
-                : "0% of sleep"}
-            </p>
-          </CardContent>
-        </Card>
+        {latestSleep?.stages?.deep && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Deep Sleep</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatTime(latestSleep.stages.deep)}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {Math.round((latestSleep.stages.deep / latestSleep.duration) * 100)}% of sleep
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">REM Sleep</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {latestSleep ? formatTime(latestSleep["REM duration (min)"]) : "0h 0m"}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {latestSleep
-                ? `${Math.round((latestSleep["REM duration (min)"] / latestSleep["Asleep duration (min)"]) * 100)}% of sleep`
-                : "0% of sleep"}
-            </p>
-          </CardContent>
-        </Card>
+        {latestSleep?.stages?.rem && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">REM Sleep</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatTime(latestSleep.stages.rem)}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {Math.round((latestSleep.stages.rem / latestSleep.duration) * 100)}% of sleep
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Respiratory Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{latestSleep?.["Respiratory rate (rpm)"] || "0.00"}</div>
-            <p className="text-sm text-muted-foreground">breaths per minute</p>
-          </CardContent>
-        </Card>
+        {latestSleep?.respiratoryRate && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Respiratory Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{latestSleep.respiratoryRate.toFixed(1)}</div>
+              <p className="text-sm text-muted-foreground">breaths per minute</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

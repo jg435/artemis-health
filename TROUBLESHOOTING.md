@@ -1,4 +1,4 @@
-# Whoop Connection Troubleshooting
+# Fitness Tracker Connection Troubleshooting
 
 ## Step 1: Check Database Connection
 Visit: `http://localhost:3000/api/test/db-connection`
@@ -6,7 +6,7 @@ Visit: `http://localhost:3000/api/test/db-connection`
 This will tell you:
 - ✅ Database connected
 - ✅ Users table exists  
-- ✅ Whoop tokens table exists
+- ✅ User integrations table exists
 - ❌ Any configuration issues
 
 ## Step 2: Run Database Migration
@@ -32,12 +32,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 WHOOP_CLIENT_ID=your_whoop_client_id
 WHOOP_CLIENT_SECRET=your_whoop_secret
+OURA_CLIENT_ID=your_oura_client_id
+OURA_CLIENT_SECRET=your_oura_secret
 ```
 
 ## Step 5: Test Auth Flow
 1. Create a test account
 2. Check if you can login/logout
-3. Try connecting Whoop after logging in
+3. Try connecting Whoop or Oura after logging in
 
 ## Common Issues:
 
@@ -53,12 +55,20 @@ WHOOP_CLIENT_SECRET=your_whoop_secret
 - Check Whoop credentials in .env
 - Verify redirect URI in Whoop dashboard
 
+### "Oura connection fails"
+- Check Oura credentials in .env
+- Verify redirect URI in Oura Cloud dashboard
+- Ensure Oura app has proper scopes (personal, daily)
+
 ### "No data showing"
 - Check console for API errors
 - Verify user is logged in
-- Check Whoop tokens are stored
+- Check integration tokens are stored in user_integrations table
 
 ## Debug URLs:
 - Database test: `http://localhost:3000/api/test/db-connection`
 - User info: `http://localhost:3000/api/auth/me`
 - Whoop recovery: `http://localhost:3000/api/whoop/recovery`
+- Oura sleep: `http://localhost:3000/api/oura/sleep`
+- Oura readiness: `http://localhost:3000/api/oura/readiness`
+- Oura activity: `http://localhost:3000/api/oura/activity`

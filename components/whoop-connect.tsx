@@ -19,6 +19,7 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
     connectedAt?: string;
     lastSync?: string;
   }>({})
+  const [ouraConnected, setOuraConnected] = useState(false)
   const { user, updateUser } = useAuth()
 
   useEffect(() => {
@@ -38,23 +39,35 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
         return
       }
       
-      // Check connection status from database
-      const response = await fetch('/api/whoop/connection-status')
-      if (response.ok) {
-        const data = await response.json()
-        setIsConnected(data.connected)
+      // Check both Whoop and Oura connections
+      const [whoopResponse, ouraResponse] = await Promise.all([
+        fetch('/api/whoop/connection-status'),
+        fetch('/api/oura/connection-status')
+      ])
+      
+      if (whoopResponse.ok) {
+        const whoopData = await whoopResponse.json()
+        setIsConnected(whoopData.connected)
         setConnectionInfo({
-          connectedAt: data.connectedAt,
-          lastSync: data.lastSync
+          connectedAt: whoopData.connectedAt,
+          lastSync: whoopData.lastSync
         })
       } else {
         setIsConnected(false)
         setConnectionInfo({})
       }
+      
+      if (ouraResponse.ok) {
+        const ouraData = await ouraResponse.json()
+        setOuraConnected(ouraData.connected || false)
+      } else {
+        setOuraConnected(false)
+      }
     } catch (error) {
-      console.log('Whoop connection check failed:', error)
+      console.log('Connection check failed:', error)
       setIsConnected(false)
       setConnectionInfo({})
+      setOuraConnected(false)
     } finally {
       setIsChecking(false)
     }
@@ -64,6 +77,12 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
     // Prevent Whoop connection in demo mode
     if (user?.isDemo) {
       alert('Whoop connection is not available in demo mode. You are already viewing demo data from a connected Whoop device.')
+      return
+    }
+    
+    // Prevent connection if Oura is already connected
+    if (ouraConnected) {
+      alert('You already have an Oura Ring connected. Please disconnect your Oura Ring before connecting your Whoop device.')
       return
     }
     
@@ -172,14 +191,17 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
   }
 
   return (
-    <Card>
+    <Card className={ouraConnected ? 'opacity-60' : ''}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Zap className="h-5 w-5 text-red-500" />
           Connect Whoop
         </CardTitle>
         <CardDescription>
-          Sync your recovery, sleep, and workout data from Whoop
+          {ouraConnected 
+            ? "Disconnect your Oura Ring first to connect Whoop device"
+            : "Sync your recovery, sleep, and workout data from Whoop"
+          }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -189,6 +211,14 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
             Not Connected
           </Badge>
         </div>
+        
+        {ouraConnected && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm text-yellow-800">
+              Only one wearable device can be connected at a time. Please disconnect your Oura Ring to connect your Whoop device.
+            </p>
+          </div>
+        )}
         
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
@@ -204,10 +234,10 @@ export function WhoopConnect({ onConnect }: WhoopConnectProps) {
 
         <Button 
           onClick={handleConnect} 
-          disabled={isConnecting}
+          disabled={isConnecting || ouraConnected}
           className="w-full"
         >
-          {isConnecting ? 'Connecting...' : 'Connect Whoop'}
+          {isConnecting ? 'Connecting...' : ouraConnected ? 'Disconnect Oura First' : 'Connect Whoop'}
         </Button>
       </CardContent>
     </Card>

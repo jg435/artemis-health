@@ -15,6 +15,7 @@ import { HealthCoachChat } from "@/components/health-coach-chat"
 import { HealthRecommendationsPanel } from "@/components/health-recommendations-panel"
 import { NutritionDashboard } from "@/components/nutrition-dashboard"
 import { WhoopConnect } from "@/components/whoop-connect"
+import { OuraConnect } from "@/components/oura-connect"
 import { AuthDialog } from "@/components/auth-dialog"
 
 export default function HealthDashboard() {
@@ -107,21 +108,30 @@ export default function HealthDashboard() {
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
-                  <WhoopConnect />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <WhoopConnect />
+                    <OuraConnect />
+                  </div>
                   <RecoveryDashboard />
                 </div>
               </TabsContent>
 
               <TabsContent value="sleep" className="space-y-4">
                 <div className="space-y-4">
-                  <WhoopConnect />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <WhoopConnect />
+                    <OuraConnect />
+                  </div>
                   <SleepAnalysis />
                 </div>
               </TabsContent>
 
               <TabsContent value="workouts" className="space-y-4">
                 <div className="space-y-4">
-                  <WhoopConnect />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <WhoopConnect />
+                    <OuraConnect />
+                  </div>
                   <WorkoutAnalysis />
                 </div>
               </TabsContent>

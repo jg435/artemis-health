@@ -6,14 +6,15 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Heart, Activity, TrendingUp, Zap } from "lucide-react"
-import type { WhoopRecovery } from "@/lib/whoop"
+import { WearableService, type UnifiedRecoveryData, type WearableType } from "@/lib/wearable-service"
 import { useAuth } from "@/context/auth-context"
 
 export function RecoveryDashboard() {
   const { user } = useAuth()
-  const [whoopData, setWhoopData] = useState<WhoopRecovery[]>([])
+  const [recoveryData, setRecoveryData] = useState<UnifiedRecoveryData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
+  const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
     fetchData()
@@ -21,21 +22,51 @@ export function RecoveryDashboard() {
 
   const fetchData = async () => {
     try {
-      // Use demo data if user is in demo mode
-      const endpoint = user?.isDemo ? '/api/demo/whoop/recovery' : '/api/whoop/recovery?limit=7'
-      const whoopResponse = await fetch(endpoint)
-      
-      if (whoopResponse.ok) {
-        const whoopResult = await whoopResponse.json()
-        setWhoopData(whoopResult.records || [])
-        setIsConnected(true)
+      if (user?.isDemo) {
+        // Use demo data if user is in demo mode - keeping Whoop structure for demo
+        const endpoint = '/api/demo/whoop/recovery'
+        const response = await fetch(endpoint)
+        
+        if (response.ok) {
+          const result = await response.json()
+          const whoopRecords = result.records || []
+          
+          // Convert Whoop demo data to unified format
+          const demoData: UnifiedRecoveryData[] = whoopRecords.map((record: any) => ({
+            source: 'whoop' as const,
+            score: record.score.recovery_score,
+            date: record.created_at.split('T')[0],
+            metrics: {
+              heartRate: record.score.resting_heart_rate,
+              hrv: record.score.hrv_rmssd_milli,
+              temperature: record.score.skin_temp_celsius,
+              oxygenSaturation: record.score.spo2_percentage,
+            }
+          }))
+          
+          setRecoveryData(demoData)
+          setConnectedWearable('whoop')
+          setIsConnected(true)
+        } else {
+          setIsConnected(false)
+        }
       } else {
-        setIsConnected(false)
+        // Use unified wearable service for real users
+        const wearable = await WearableService.getConnectedWearable()
+        setConnectedWearable(wearable)
+        
+        if (wearable) {
+          const data = await WearableService.getRecoveryData()
+          setRecoveryData(data)
+          setIsConnected(data.length > 0)
+        } else {
+          setIsConnected(false)
+        }
       }
     } catch (error) {
-      console.log("Whoop recovery data not available")
+      console.log("Recovery data not available:", error)
       setIsConnected(false)
-      setWhoopData([])
+      setRecoveryData([])
     } finally {
       setLoading(false)
     }
@@ -58,38 +89,31 @@ export function RecoveryDashboard() {
     )
   }
 
-  if (!isConnected || whoopData.length === 0) {
+  if (!isConnected || recoveryData.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">Connect Your Whoop Device</h3>
+          <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop device to view recovery, sleep, and workout data
+            Connect your Whoop or Oura device to view recovery data
           </p>
         </div>
       </div>
     )
   }
 
-  const latestData = {
-    "Recovery score %": whoopData[0].score.recovery_score,
-    "Resting heart rate (bpm)": whoopData[0].score.resting_heart_rate,
-    "Heart rate variability (ms)": whoopData[0].score.hrv_rmssd_milli,
-    "Skin temp (celsius)": whoopData[0].score.skin_temp_celsius,
-    "Blood oxygen %": whoopData[0].score.spo2_percentage,
-    "Day Strain": "N/A"
-  }
+  const latestData = recoveryData[0]
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
 
-  const chartData = whoopData
+  const chartData = recoveryData
     .slice()
     .reverse()
     .map((item) => ({
-      date: new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      recovery: item.score.recovery_score,
-      hrv: item.score.hrv_rmssd_milli,
-      rhr: item.score.resting_heart_rate,
-      strain: 0, // Strain data would come from a different endpoint
+      date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      recovery: item.score,
+      hrv: item.metrics.hrv || 0,
+      rhr: item.metrics.heartRate || 0,
     }))
 
   const getRecoveryColor = (score: number) => {
@@ -110,23 +134,26 @@ export function RecoveryDashboard() {
       <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg">
         <Zap className="h-4 w-4 text-blue-600" />
         <span className="text-sm text-blue-800 dark:text-blue-200">
-          Displaying real-time data from your Whoop device
+          Displaying real-time data from your {wearableName} device
         </span>
       </div>
+
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recovery Score</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {connectedWearable === 'oura' ? 'Readiness Score' : 'Recovery Score'}
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getRecoveryColor(latestData?.["Recovery score %"] || 0)}`}>
-              {latestData?.["Recovery score %"] || 0}%
+            <div className={`text-2xl font-bold ${getRecoveryColor(latestData?.score || 0)}`}>
+              {latestData?.score || 0}%
             </div>
-            <Progress value={latestData?.["Recovery score %"] || 0} className="mt-2" />
+            <Progress value={latestData?.score || 0} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-1">
-              {getRecoveryStatus(latestData?.["Recovery score %"] || 0)} Recovery
+              {getRecoveryStatus(latestData?.score || 0)} Recovery
             </p>
           </CardContent>
         </Card>
@@ -137,7 +164,7 @@ export function RecoveryDashboard() {
             <Heart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{latestData?.["Resting heart rate (bpm)"] || 0}</div>
+            <div className="text-2xl font-bold">{latestData?.metrics.heartRate || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">bpm</p>
           </CardContent>
         </Card>
@@ -148,19 +175,25 @@ export function RecoveryDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{latestData?.["Heart rate variability (ms)"] || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">ms</p>
+            <div className="text-2xl font-bold">{latestData?.metrics.hrv || 0}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {connectedWearable === 'oura' ? 'balance score' : 'ms'}
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Day Strain</CardTitle>
+            <CardTitle className="text-sm font-medium">Temperature</CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{latestData?.["Day Strain"] || "0.0"}</div>
-            <p className="text-xs text-muted-foreground mt-1">strain score</p>
+            <div className="text-2xl font-bold">
+              {latestData?.metrics.temperature?.toFixed(1) || "0.0"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {connectedWearable === 'oura' ? 'deviation' : '°C'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -201,7 +234,7 @@ export function RecoveryDashboard() {
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip />
-                  <Line yAxisId="left" type="monotone" dataKey="hrv" stroke="#82ca9d" strokeWidth={2} name="HRV (ms)" />
+                  <Line yAxisId="left" type="monotone" dataKey="hrv" stroke="#82ca9d" strokeWidth={2} name="HRV" />
                   <Line
                     yAxisId="right"
                     type="monotone"
@@ -221,23 +254,30 @@ export function RecoveryDashboard() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Body Temperature</CardTitle>
+            <CardTitle className="text-lg">Temperature</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{latestData?.["Skin temp (celsius)"]?.toFixed(1) || "0.0"}°C</div>
-            <p className="text-sm text-muted-foreground">Skin temperature</p>
+            <div className="text-2xl font-bold">
+              {latestData?.metrics.temperature?.toFixed(1) || "0.0"}
+              {connectedWearable === 'oura' ? '' : '°C'}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {connectedWearable === 'oura' ? 'Temperature deviation' : 'Skin temperature'}
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Blood Oxygen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{latestData?.["Blood oxygen %"]?.toFixed(1) || "0.0"}%</div>
-            <p className="text-sm text-muted-foreground">SpO2 level</p>
-          </CardContent>
-        </Card>
+        {latestData?.metrics.oxygenSaturation && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Blood Oxygen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{latestData.metrics.oxygenSaturation.toFixed(1)}%</div>
+              <p className="text-sm text-muted-foreground">SpO2 level</p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -246,20 +286,20 @@ export function RecoveryDashboard() {
           <CardContent>
             <Badge
               variant={
-                (latestData?.["Recovery score %"] || 0) >= 67
+                (latestData?.score || 0) >= 67
                   ? "default"
-                  : (latestData?.["Recovery score %"] || 0) >= 34
+                  : (latestData?.score || 0) >= 34
                     ? "secondary"
                     : "destructive"
               }
               className="text-lg px-3 py-1"
             >
-              {getRecoveryStatus(latestData?.["Recovery score %"] || 0)}
+              {getRecoveryStatus(latestData?.score || 0)}
             </Badge>
             <p className="text-sm text-muted-foreground mt-2">
-              {(latestData?.["Recovery score %"] || 0) >= 67
+              {(latestData?.score || 0) >= 67
                 ? "Your body is well recovered and ready for strain"
-                : (latestData?.["Recovery score %"] || 0) >= 34
+                : (latestData?.score || 0) >= 34
                   ? "Your body is moderately recovered"
                   : "Your body needs more recovery time"}
             </p>
