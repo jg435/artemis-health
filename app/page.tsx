@@ -40,8 +40,8 @@ export default function HealthDashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to HealthApp</h1>
-          <p className="text-xl text-gray-600 mb-8">Your personal health and wellness companion</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to Artemis</h1>
+          <p className="text-xl text-gray-600 mb-8">Your comprehensive health tracking dashboard.<br />Aggregate all your medical data in one place to drive ai powered insights</p>
           <Button onClick={() => setShowAuthDialog(true)} size="lg">
             Get Started
           </Button>
@@ -64,9 +64,9 @@ export default function HealthDashboard() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Health Dashboard</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Artemis</h1>
                 <p className="text-muted-foreground text-sm sm:text-base">
-                  Welcome back, {user.name}! Your comprehensive health tracking dashboard.
+                  Welcome back, {user.name}! Your comprehensive health tracking dashboard.<br />Aggregate all your medical data in one place to drive ai powered insights
                 </p>
               </div>
               <div className="flex items-center space-x-2 sm:space-x-4">
