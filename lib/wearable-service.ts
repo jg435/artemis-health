@@ -40,6 +40,8 @@ export interface UnifiedActivityData {
   distance?: number; // in meters
   averageHeartRate?: number;
   maxHeartRate?: number;
+  sportId?: number;
+  sportName?: string;
   heartRateZones?: {
     zone1?: number; // seconds in zone
     zone2?: number;
@@ -263,17 +265,19 @@ export class WearableService {
       const data = await response.json();
       const records: WhoopRecovery[] = data.records || [];
       
-      return records.map(record => ({
-        source: 'whoop' as const,
-        score: record.score.recovery_score,
-        date: record.created_at.split('T')[0],
-        metrics: {
-          heartRate: record.score.resting_heart_rate,
-          hrv: record.score.hrv_rmssd_milli,
-          temperature: record.score.skin_temp_celsius,
-          oxygenSaturation: record.score.spo2_percentage,
-        }
-      }));
+      return records
+        .map(record => ({
+          source: 'whoop' as const,
+          score: record.score.recovery_score,
+          date: record.created_at.split('T')[0],
+          metrics: {
+            heartRate: record.score.resting_heart_rate,
+            hrv: record.score.hrv_rmssd_milli,
+            temperature: record.score.skin_temp_celsius,
+            oxygenSaturation: record.score.spo2_percentage,
+          }
+        }))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort newest first
     } catch (error) {
       console.error('Error fetching Whoop recovery data:', error);
       return [];
@@ -308,7 +312,7 @@ export class WearableService {
       }));
       
       console.log('Unified Oura data:', unifiedData);
-      return unifiedData;
+      return unifiedData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort newest first
     } catch (error) {
       console.error('Error fetching Oura readiness data:', error);
       return [];
@@ -408,6 +412,8 @@ export class WearableService {
         distance: record.score.distance_meter,
         averageHeartRate: record.score.average_heart_rate,
         maxHeartRate: record.score.max_heart_rate,
+        sportId: record.sport_id,
+        sportName: record.sport_name,
       }));
     } catch (error) {
       console.error('Error fetching Whoop activity data:', error);

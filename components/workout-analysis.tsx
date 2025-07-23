@@ -369,57 +369,56 @@ export function WorkoutAnalysis() {
         </Card>
       </div>
 
-      {/* Daily Activity Summary */}
+      {/* Individual Workout List */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily Activity Summary</CardTitle>
-          <CardDescription>Daily aggregated strain and calories</CardDescription>
+          <CardTitle>Recent Workouts</CardTitle>
+          <CardDescription>Individual workout sessions with exercise details</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {Array.from(aggregatedByDate.entries())
-              .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime()) // Sort by date descending (newest first)
-              .slice(0, 7) // Show last 7 days
-              .map(([date, data], index) => (
-              <div key={date} className="flex items-center justify-between p-4 border rounded-lg">
+            {activityData
+              .slice(0, 10) // Show last 10 workouts
+              .map((workout, index) => (
+              <div key={`${workout.date}-${index}`} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
                     <Activity className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
                     <p className="font-medium">
-                      {connectedWearable === 'whoop' ? `${data.workoutCount} Workout${data.workoutCount !== 1 ? 's' : ''}` : 'Daily Activity'}
+                      {connectedWearable === 'whoop' && workout.sportName ? workout.sportName : 'Workout'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(date).toLocaleDateString()}
+                      {new Date(workout.date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center space-x-4">
                     <div>
-                      <p className="text-sm font-medium">{data.calories} cal</p>
+                      <p className="text-sm font-medium">{workout.calories} cal</p>
                       <p className="text-xs text-muted-foreground">
-                        {connectedWearable === 'whoop' ? `Total Strain: ${data.strain.toFixed(1)}` : 
-                         data.steps ? `${data.steps.toLocaleString()} steps` : 'Activity'}
+                        {connectedWearable === 'whoop' && workout.strain ? `Strain: ${workout.strain.toFixed(1)}` : 
+                         workout.steps ? `${workout.steps.toLocaleString()} steps` : 'Activity'}
                       </p>
                     </div>
-                    {(connectedWearable === 'whoop' && data.strain > 0) && (
+                    {(connectedWearable === 'whoop' && workout.strain && workout.strain > 0) && (
                       <Badge
                         variant={
-                          data.strain >= 14
+                          workout.strain >= 14
                             ? "destructive"
-                            : data.strain >= 10
+                            : workout.strain >= 10
                               ? "default"
                               : "secondary"
                         }
                       >
-                        {getStrainLevel(data.strain)}
+                        {getStrainLevel(workout.strain)}
                       </Badge>
                     )}
-                    {connectedWearable === 'oura' && data.score && (
+                    {connectedWearable === 'oura' && workout.score && (
                       <Badge variant="default">
-                        Score: {data.score}
+                        Score: {workout.score}
                       </Badge>
                     )}
                   </div>

@@ -118,7 +118,7 @@ class WhoopAPI {
   }
 
   async getUser(accessToken: string): Promise<WhoopUser> {
-    return this.makeRequest<WhoopUser>('/v1/user/profile/basic', accessToken);
+    return this.makeRequest<WhoopUser>('/v2/user/profile/basic', accessToken);
   }
 
   async getRecovery(
@@ -132,7 +132,7 @@ class WhoopAPI {
     if (end) params.append('end', end);
 
     return this.makeRequest<{ records: WhoopRecovery[] }>(
-      `/v1/recovery?${params}`,
+      `/v2/recovery?${params}`,
       accessToken
     );
   }
@@ -148,7 +148,7 @@ class WhoopAPI {
     if (end) params.append('end', end);
 
     return this.makeRequest<{ records: WhoopSleep[] }>(
-      `/v1/activity/sleep?${params}`,
+      `/v2/activity/sleep?${params}`,
       accessToken
     );
   }
@@ -163,7 +163,7 @@ class WhoopAPI {
     if (start) params.append('start', start);
     if (end) params.append('end', end);
 
-    const endpoint = `/v1/activity/workout?${params}`;
+    const endpoint = `/v2/activity/workout?${params}`;
     console.log('Calling Whoop API endpoint:', endpoint);
     
     const result = await this.makeRequest<{ records: WhoopWorkout[] }>(
