@@ -9,32 +9,26 @@ import { CheckCircle2, Circle, Loader2 } from "lucide-react"
 
 interface OuraConnectProps {
   onConnect?: () => void;
+  whoopConnected?: boolean;
+  garminConnected?: boolean;
 }
 
-export function OuraConnect({ onConnect }: OuraConnectProps) {
+export function OuraConnect({ onConnect, whoopConnected = false, garminConnected = false }: OuraConnectProps) {
   const { user } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [whoopConnected, setWhoopConnected] = useState(false)
 
   const checkConnection = async () => {
     try {
-      // Check both Oura and Whoop connections
-      const [ouraResponse, whoopResponse] = await Promise.all([
-        fetch('/api/oura/connection-status'),
-        fetch('/api/whoop/connection-status')
-      ])
-      
+      // Check only Oura connection status
+      const ouraResponse = await fetch('/api/oura/connection-status')
       const ouraData = await ouraResponse.json()
-      const whoopData = await whoopResponse.json()
       
       setIsConnected(ouraData.connected || false)
-      setWhoopConnected(whoopData.connected || false)
     } catch (error) {
       console.log('Connection check failed:', error)
       setIsConnected(false)
-      setWhoopConnected(false)
     } finally {
       setIsLoading(false)
     }
@@ -51,9 +45,14 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
       return
     }
 
-    // Prevent connection if Whoop is already connected
+    // Prevent connection if another device is already connected
     if (whoopConnected) {
       alert('You already have a Whoop device connected. Please disconnect your Whoop device before connecting your Oura Ring.')
+      return
+    }
+
+    if (garminConnected) {
+      alert('You already have a Garmin device connected. Please disconnect your Garmin device before connecting your Oura Ring.')
       return
     }
 
@@ -88,7 +87,7 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !whoopConnected && !garminConnected) {
     return (
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-6">
@@ -100,6 +99,9 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
       </Card>
     )
   }
+
+  const otherDeviceConnected = whoopConnected || garminConnected
+  const connectedDeviceName = whoopConnected ? 'Whoop' : garminConnected ? 'Garmin' : ''
 
   if (isConnected) {
     return (
@@ -140,7 +142,7 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
   }
 
   return (
-    <Card className={`w-full ${whoopConnected ? 'opacity-60' : ''}`}>
+    <Card className={`w-full ${otherDeviceConnected ? 'opacity-60' : ''}`}>
       <CardHeader>
         <div className="flex items-center space-x-2">
           <Circle className="h-5 w-5 text-muted-foreground" />
@@ -149,17 +151,17 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
           </CardTitle>
         </div>
         <CardDescription>
-          {whoopConnected 
-            ? "Disconnect your Whoop device first to connect Oura Ring"
+          {otherDeviceConnected 
+            ? `Disconnect your ${connectedDeviceName} device first to connect Oura Ring`
             : "Sync your sleep, readiness, and activity data from Oura Ring"
           }
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {whoopConnected && (
+        {otherDeviceConnected && (
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <p className="text-sm text-yellow-800">
-              Only one wearable device can be connected at a time. Please disconnect your Whoop device to connect your Oura Ring.
+              Only one wearable device can be connected at a time. Please disconnect your {connectedDeviceName} device to connect your Oura Ring.
             </p>
           </div>
         )}
@@ -175,10 +177,10 @@ export function OuraConnect({ onConnect }: OuraConnectProps) {
         </div>
         <Button 
           onClick={handleConnect} 
-          disabled={isConnecting || whoopConnected}
+          disabled={isConnecting || otherDeviceConnected}
           className="w-full"
         >
-          {isConnecting ? 'Connecting...' : whoopConnected ? 'Disconnect Whoop First' : 'Connect Oura'}
+          {isConnecting ? 'Connecting...' : otherDeviceConnected ? `Disconnect ${connectedDeviceName} First` : 'Connect Oura'}
         </Button>
       </CardContent>
     </Card>

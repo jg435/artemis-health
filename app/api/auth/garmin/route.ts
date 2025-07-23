@@ -11,12 +11,12 @@ export async function GET(request: NextRequest) {
       const user = await authService.getUser(userSession);
       if (user?.isDemo) {
         return NextResponse.json(
-          { error: 'Whoop connection is not available in demo mode' },
+          { error: 'Garmin connection is not available in demo mode' },
           { status: 403 }
         );
       }
 
-      // Check if user already has Oura or Garmin connected
+      // Check if user already has Whoop or Oura connected
       const { createClient } = require('@supabase/supabase-js');
       const supabase = createClient(process.env.SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
       
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         .from('user_integrations')
         .select('*')
         .eq('user_id', user.id)
-        .in('integration_type', ['oura', 'garmin']);
+        .in('integration_type', ['whoop', 'oura']);
 
       if (existingConnections && existingConnections.length > 0) {
         const connectedDevice = existingConnections[0].integration_type;
@@ -34,21 +34,22 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     // Continue with normal flow if user check fails
   }
-  const clientId = process.env.WHOOP_CLIENT_ID;
+  
+  const clientId = process.env.GARMIN_CLIENT_ID;
   
   // Use production URL by default, localhost only for local development
   const isLocal = process.env.NODE_ENV === 'development';
   const redirectUri = isLocal 
-    ? 'http://localhost:3000/api/auth/whoop/callback'
-    : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/whoop/callback';
+    ? 'http://localhost:3000/api/auth/garmin/callback'
+    : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/garmin/callback';
   
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('isLocal:', isLocal);
-  console.log('Redirect URI being sent to Whoop:', redirectUri);
+  console.log('Redirect URI being sent to Garmin:', redirectUri);
   
   if (!clientId || !redirectUri) {
     return NextResponse.json(
-      { error: 'Missing Whoop API configuration' },
+      { error: 'Missing Garmin API configuration' },
       { status: 500 }
     );
   }
@@ -56,16 +57,16 @@ export async function GET(request: NextRequest) {
   // Generate a random state parameter for security
   const state = Math.random().toString(36).substring(2, 10);
   
-  const authUrl = new URL('https://api.prod.whoop.com/oauth/oauth2/auth');
+  const authUrl = new URL('https://connect.garmin.com/oauth-service/oauth/authorize');
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('client_id', clientId);
   authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('scope', 'read:recovery read:sleep read:workout read:profile');
+  authUrl.searchParams.append('scope', 'read');
   authUrl.searchParams.append('state', state);
 
   // Store state in a cookie for validation
   const response = NextResponse.redirect(authUrl.toString());
-  response.cookies.set('whoop_oauth_state', state, {
+  response.cookies.set('garmin_oauth_state', state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

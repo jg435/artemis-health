@@ -16,12 +16,65 @@ import { HealthRecommendationsPanel } from "@/components/health-recommendations-
 import { NutritionDashboard } from "@/components/nutrition-dashboard"
 import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
+import { GarminConnect } from "@/components/garmin-connect"
 import { AuthDialog } from "@/components/auth-dialog"
 
 export default function HealthDashboard() {
   const { user, isLoading, login, logout } = useAuth()
   const [activeTab, setActiveTab] = useState("recovery")
   const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [connectionStates, setConnectionStates] = useState({
+    whoop: false,
+    oura: false,
+    garmin: false
+  })
+
+  const checkAllConnections = async () => {
+    try {
+      const [whoopResponse, ouraResponse, garminResponse] = await Promise.all([
+        fetch('/api/whoop/connection-status'),
+        fetch('/api/oura/connection-status'),
+        fetch('/api/garmin/connection-status')
+      ])
+      
+      const whoopData = await whoopResponse.json()
+      const ouraData = await ouraResponse.json()
+      const garminData = await garminResponse.json()
+      
+      setConnectionStates({
+        whoop: whoopData.connected || false,
+        oura: ouraData.connected || false,
+        garmin: garminData.connected || false
+      })
+    } catch (error) {
+      console.log('Connection check failed:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (user && !user.isDemo) {
+      checkAllConnections()
+    }
+  }, [user])
+
+  // Check for OAuth success/failure parameters and refresh connections
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const whoopConnected = urlParams.get('whoop_connected')
+    const ouraConnected = urlParams.get('oura_connected')
+    const garminConnected = urlParams.get('garmin_connected')
+    
+    if (whoopConnected || ouraConnected || garminConnected) {
+      // Remove the query parameter from URL
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+      
+      // Refresh connection states
+      if (user && !user.isDemo) {
+        checkAllConnections()
+      }
+    }
+  }, [])
 
 
   // Show loading state while checking authentication
@@ -108,9 +161,10 @@ export default function HealthDashboard() {
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <WhoopConnect />
-                    <OuraConnect />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
                   </div>
                   <RecoveryDashboard />
                 </div>
@@ -118,9 +172,10 @@ export default function HealthDashboard() {
 
               <TabsContent value="sleep" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <WhoopConnect />
-                    <OuraConnect />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
                   </div>
                   <SleepAnalysis />
                 </div>
@@ -128,9 +183,10 @@ export default function HealthDashboard() {
 
               <TabsContent value="workouts" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <WhoopConnect />
-                    <OuraConnect />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
                   </div>
                   <WorkoutAnalysis />
                 </div>

@@ -101,6 +101,48 @@ export class WearableService {
     return [];
   }
 
+  static async getAllWearableRecoveryData(): Promise<UnifiedRecoveryData[]> {
+    try {
+      // Fetch data from both wearables simultaneously
+      const [whoopData, ouraData] = await Promise.all([
+        this.getWhoopRecoveryData().catch(() => []),
+        this.getOuraRecoveryData().catch(() => [])
+      ]);
+
+      // Combine and aggregate data by date
+      const allData = [...whoopData, ...ouraData];
+      const aggregatedByDate = new Map<string, UnifiedRecoveryData>();
+
+      allData.forEach(recovery => {
+        const existing = aggregatedByDate.get(recovery.date);
+        
+        if (existing) {
+          // Average the recovery scores
+          aggregatedByDate.set(recovery.date, {
+            ...existing,
+            source: 'whoop' as const, // Default to whoop for display purposes
+            score: Math.round((existing.score + recovery.score) / 2),
+            metrics: {
+              heartRate: existing.metrics.heartRate || recovery.metrics.heartRate,
+              hrv: existing.metrics.hrv || recovery.metrics.hrv,
+              temperature: existing.metrics.temperature || recovery.metrics.temperature,
+              oxygenSaturation: existing.metrics.oxygenSaturation || recovery.metrics.oxygenSaturation,
+            }
+          });
+        } else {
+          aggregatedByDate.set(recovery.date, recovery);
+        }
+      });
+
+      // Convert back to array and sort by date (newest first)
+      return Array.from(aggregatedByDate.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error fetching aggregated recovery data:', error);
+      return [];
+    }
+  }
+
   static async getSleepData(): Promise<UnifiedSleepData[]> {
     const connectedWearable = await this.getConnectedWearable();
     
@@ -113,6 +155,51 @@ export class WearableService {
     return [];
   }
 
+  static async getAllWearableSleepData(): Promise<UnifiedSleepData[]> {
+    try {
+      // Fetch data from both wearables simultaneously
+      const [whoopData, ouraData] = await Promise.all([
+        this.getWhoopSleepData().catch(() => []),
+        this.getOuraSleepData().catch(() => [])
+      ]);
+
+      // Combine and aggregate data by date
+      const allData = [...whoopData, ...ouraData];
+      const aggregatedByDate = new Map<string, UnifiedSleepData>();
+
+      allData.forEach(sleep => {
+        const existing = aggregatedByDate.get(sleep.date);
+        
+        if (existing) {
+          // Average the sleep scores and sum durations
+          aggregatedByDate.set(sleep.date, {
+            ...existing,
+            source: 'whoop' as const, // Default to whoop for display purposes
+            score: Math.round((existing.score + sleep.score) / 2),
+            duration: existing.duration + sleep.duration, // Sum total sleep time
+            efficiency: Math.round((existing.efficiency + sleep.efficiency) / 2),
+            stages: {
+              deep: (existing.stages.deep || 0) + (sleep.stages.deep || 0),
+              light: (existing.stages.light || 0) + (sleep.stages.light || 0),
+              rem: (existing.stages.rem || 0) + (sleep.stages.rem || 0),
+              awake: (existing.stages.awake || 0) + (sleep.stages.awake || 0),
+            },
+            respiratoryRate: existing.respiratoryRate || sleep.respiratoryRate
+          });
+        } else {
+          aggregatedByDate.set(sleep.date, sleep);
+        }
+      });
+
+      // Convert back to array and sort by date (newest first)
+      return Array.from(aggregatedByDate.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error fetching aggregated sleep data:', error);
+      return [];
+    }
+  }
+
   static async getActivityData(): Promise<UnifiedActivityData[]> {
     const connectedWearable = await this.getConnectedWearable();
     
@@ -123,6 +210,49 @@ export class WearableService {
     }
     
     return [];
+  }
+
+  static async getAllWearableActivityData(): Promise<UnifiedActivityData[]> {
+    try {
+      // Fetch data from both wearables simultaneously
+      const [whoopData, ouraData] = await Promise.all([
+        this.getWhoopActivityData().catch(() => []),
+        this.getOuraActivityData().catch(() => [])
+      ]);
+
+      // Combine and aggregate data by date
+      const allData = [...whoopData, ...ouraData];
+      const aggregatedByDate = new Map<string, UnifiedActivityData>();
+
+      allData.forEach(activity => {
+        const existing = aggregatedByDate.get(activity.date);
+        
+        if (existing) {
+          // Aggregate calories and strain
+          aggregatedByDate.set(activity.date, {
+            ...existing,
+            source: 'whoop' as const, // Default to whoop for display purposes
+            calories: existing.calories + activity.calories,
+            strain: (existing.strain || 0) + (activity.strain || 0),
+            steps: Math.max(existing.steps || 0, activity.steps || 0), // Take higher step count
+            distance: Math.max(existing.distance || 0, activity.distance || 0), // Take higher distance
+            averageHeartRate: existing.averageHeartRate || activity.averageHeartRate,
+            maxHeartRate: Math.max(existing.maxHeartRate || 0, activity.maxHeartRate || 0),
+            score: existing.score || activity.score,
+            heartRateZones: existing.heartRateZones || activity.heartRateZones
+          });
+        } else {
+          aggregatedByDate.set(activity.date, activity);
+        }
+      });
+
+      // Convert back to array and sort by date (newest first)
+      return Array.from(aggregatedByDate.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error fetching aggregated activity data:', error);
+      return [];
+    }
   }
 
   private static async getWhoopRecoveryData(): Promise<UnifiedRecoveryData[]> {
@@ -287,10 +417,11 @@ export class WearableService {
 
   private static async getOuraActivityData(): Promise<UnifiedActivityData[]> {
     try {
-      // Fetch both activity and sessions data
-      const [activityResponse, sessionsResponse] = await Promise.all([
+      // Fetch activity, sessions, and heart rate data
+      const [activityResponse, sessionsResponse, heartRateResponse] = await Promise.all([
         fetch('/api/oura/activity'),
-        fetch('/api/oura/sessions')
+        fetch('/api/oura/sessions'),
+        fetch('/api/oura/heartrate')
       ]);
 
       if (!activityResponse.ok) return [];
@@ -304,29 +435,84 @@ export class WearableService {
         sessionsData = await sessionsResponse.json();
       }
       
-      const sessions = sessionsData.data || [];
+      // Get heart rate data
+      let heartRateData: any = { data: [] };
+      if (heartRateResponse.ok) {
+        heartRateData = await heartRateResponse.json();
+      }
       
+      const sessions = sessionsData.data || [];
+      const heartRates = heartRateData.data || [];
+      
+      console.log('Oura wearable service - Heart rate response status:', heartRateResponse.status);
+      console.log('Oura wearable service - Heart rate data count:', heartRates.length);
+      if (heartRates.length > 0) {
+        console.log('Oura wearable service - Sample heart rate data:', heartRates.slice(0, 2));
+      }
+      
+      // Oura already provides daily aggregated data, so we just need to format it
       return records.map(record => {
-        // Try to find matching session for this day for heart rate zones
-        const matchingSession = sessions.find((session: any) => session.day === record.day);
+        // Try to find matching sessions for this day and aggregate heart rate zones
+        const dailySessions = sessions.filter((session: any) => session.day === record.day);
+        
+        let aggregatedHeartRateZones: any = undefined;
+        if (dailySessions.length > 0) {
+          // Sum up all heart rate zones for the day
+          const totalZones = dailySessions.reduce((acc: any, session: any) => {
+            if (session.heart_rate_zones) {
+              acc.zone1 += session.heart_rate_zones.time_in_zone_1 || 0;
+              acc.zone2 += session.heart_rate_zones.time_in_zone_2 || 0;
+              acc.zone3 += session.heart_rate_zones.time_in_zone_3 || 0;
+              acc.zone4 += session.heart_rate_zones.time_in_zone_4 || 0;
+              acc.zone5 += session.heart_rate_zones.time_in_zone_5 || 0;
+              acc.zone6 += session.heart_rate_zones.time_in_zone_6 || 0;
+            }
+            return acc;
+          }, { zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0, zone6: 0 });
+
+          // Only include if there's actual heart rate zone data
+          if (Object.values(totalZones).some(zone => zone > 0)) {
+            aggregatedHeartRateZones = totalZones;
+          }
+        }
+        
+        // Calculate average and max heart rate from heart rate endpoint for this day
+        let averageHeartRate: number | undefined;
+        let maxHeartRate: number | undefined;
+        
+        // Filter heart rate data for this specific day
+        const dayHeartRates = heartRates.filter((hr: any) => {
+          const hrDate = new Date(hr.timestamp).toISOString().split('T')[0];
+          return hrDate === record.day;
+        });
+        
+        console.log(`Processing day ${record.day}: found ${dayHeartRates.length} heart rate readings`);
+        if (dayHeartRates.length > 0) {
+          console.log('Sample heart rate readings for day:', dayHeartRates.slice(0, 3).map((hr: any) => ({ bpm: hr.bpm, timestamp: hr.timestamp, source: hr.source })));
+        }
+        
+        if (dayHeartRates.length > 0) {
+          const bpmValues = dayHeartRates.map((hr: any) => hr.bpm).filter((bpm: number) => bpm > 0);
+          
+          if (bpmValues.length > 0) {
+            averageHeartRate = Math.round(bpmValues.reduce((sum: number, bpm: number) => sum + bpm, 0) / bpmValues.length);
+            maxHeartRate = Math.max(...bpmValues);
+            console.log(`Day ${record.day} calculated HR - Avg: ${averageHeartRate}, Max: ${maxHeartRate}`);
+          }
+        }
         
         return {
           source: 'oura' as const,
           date: record.day,
           score: record.score,
-          calories: record.total_calories,
-          steps: record.steps,
-          distance: record.equivalent_walking_distance,
-          heartRateZones: matchingSession?.heart_rate_zones ? {
-            zone1: matchingSession.heart_rate_zones.time_in_zone_1,
-            zone2: matchingSession.heart_rate_zones.time_in_zone_2,
-            zone3: matchingSession.heart_rate_zones.time_in_zone_3,
-            zone4: matchingSession.heart_rate_zones.time_in_zone_4,
-            zone5: matchingSession.heart_rate_zones.time_in_zone_5,
-            zone6: matchingSession.heart_rate_zones.time_in_zone_6,
-          } : undefined
+          calories: record.total_calories, // Already daily total
+          steps: record.steps, // Already daily total
+          distance: record.equivalent_walking_distance, // Already daily total
+          averageHeartRate,
+          maxHeartRate,
+          heartRateZones: aggregatedHeartRateZones
         };
-      });
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } catch (error) {
       console.error('Error fetching Oura activity data:', error);
       return [];

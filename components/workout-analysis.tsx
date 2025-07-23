@@ -53,9 +53,28 @@ export function WorkoutAnalysis() {
         setConnectedWearable(wearable)
         
         if (wearable) {
-          const data = await WearableService.getActivityData()
-          setActivityData(data)
-          setIsConnected(data.length > 0)
+          // For Oura, get both activity and recovery data to combine heart rate info
+          const [activityData, recoveryData] = await Promise.all([
+            WearableService.getActivityData(),
+            wearable === 'oura' ? WearableService.getRecoveryData() : Promise.resolve([])
+          ])
+          
+          // If Oura, merge heart rate data from recovery into activity data
+          if (wearable === 'oura' && recoveryData.length > 0) {
+            const enrichedActivityData = activityData.map(activity => {
+              const matchingRecovery = recoveryData.find(recovery => recovery.date === activity.date)
+              return {
+                ...activity,
+                averageHeartRate: matchingRecovery?.metrics?.heartRate || activity.averageHeartRate,
+                maxHeartRate: undefined // Don't show max HR for Oura
+              }
+            })
+            setActivityData(enrichedActivityData)
+          } else {
+            setActivityData(activityData)
+          }
+          
+          setIsConnected(activityData.length > 0)
         } else {
           setIsConnected(false)
         }
@@ -103,24 +122,90 @@ export function WorkoutAnalysis() {
   const latestActivity = activityData[0]
   const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
 
+  // Aggregate data by date for chart display
+  const aggregatedByDate = new Map<string, {
+    calories: number;
+    strain: number;
+    steps: number;
+    distance: number;
+    heartRates: number[];
+    maxHeartRate: number;
+    workoutCount: number;
+    score?: number;
+    heartRateZones?: {
+      zone1?: number;
+      zone2?: number;
+      zone3?: number;
+      zone4?: number;
+      zone5?: number;
+      zone6?: number;
+    };
+  }>();
+
+  activityData.forEach(item => {
+    const dateKey = item.date;
+    const existing = aggregatedByDate.get(dateKey) || {
+      calories: 0,
+      strain: 0,
+      steps: 0,
+      distance: 0,
+      heartRates: [],
+      maxHeartRate: 0,
+      workoutCount: 0,
+      score: item.score,
+      heartRateZones: undefined
+    };
+
+    existing.calories += item.calories;
+    existing.strain += item.strain || 0;
+    existing.steps = Math.max(existing.steps, item.steps || 0); // Take highest step count for the day
+    existing.distance += item.distance || 0;
+    if (item.averageHeartRate) existing.heartRates.push(item.averageHeartRate);
+    existing.maxHeartRate = Math.max(existing.maxHeartRate, item.maxHeartRate || 0);
+    existing.workoutCount += 1;
+    if (item.score) existing.score = item.score; // For Oura, use the daily activity score
+    
+    // Aggregate heart rate zones for Oura data
+    if (item.heartRateZones) {
+      if (!existing.heartRateZones) {
+        existing.heartRateZones = {
+          zone1: 0,
+          zone2: 0,
+          zone3: 0,
+          zone4: 0,
+          zone5: 0,
+          zone6: 0
+        };
+      }
+      existing.heartRateZones.zone1 = (existing.heartRateZones.zone1 || 0) + (item.heartRateZones.zone1 || 0);
+      existing.heartRateZones.zone2 = (existing.heartRateZones.zone2 || 0) + (item.heartRateZones.zone2 || 0);
+      existing.heartRateZones.zone3 = (existing.heartRateZones.zone3 || 0) + (item.heartRateZones.zone3 || 0);
+      existing.heartRateZones.zone4 = (existing.heartRateZones.zone4 || 0) + (item.heartRateZones.zone4 || 0);
+      existing.heartRateZones.zone5 = (existing.heartRateZones.zone5 || 0) + (item.heartRateZones.zone5 || 0);
+      existing.heartRateZones.zone6 = (existing.heartRateZones.zone6 || 0) + (item.heartRateZones.zone6 || 0);
+    }
+
+    aggregatedByDate.set(dateKey, existing);
+  });
+
   // Chart data for activity trends
-  const chartData = activityData
-    .slice()
-    .reverse()
-    .map((item) => ({
-      date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      calories: item.calories,
-      strain: item.strain || 0,
-      steps: item.steps || 0,
-      distance: item.distance ? Math.round(item.distance / 1000 * 100) / 100 : 0, // Convert to km
-      avgHR: item.averageHeartRate || 0,
-      maxHR: item.maxHeartRate || 0,
+  const chartData = Array.from(aggregatedByDate.entries())
+    .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime()) // Sort by date ascending
+    .map(([date, data]) => ({
+      date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      calories: data.calories,
+      strain: data.strain,
+      steps: data.steps,
+      distance: Math.round(data.distance / 1000 * 100) / 100, // Convert to km
+      avgHR: data.heartRates.length > 0 ? Math.round(data.heartRates.reduce((sum, hr) => sum + hr, 0) / data.heartRates.length) : 0,
+      maxHR: data.maxHeartRate,
     }))
 
-  // Calculate totals from recent activity data
-  const totalCalories = activityData.slice(0, 7).reduce((sum, activity) => sum + activity.calories, 0)
+  // Calculate totals from aggregated daily data (last 7 days)
+  const last7DaysData = Array.from(aggregatedByDate.values()).slice(-7);
+  const totalCalories = last7DaysData.reduce((sum, day) => sum + day.calories, 0)
   const avgStrain = connectedWearable === 'whoop' 
-    ? activityData.slice(0, 7).reduce((sum, activity) => sum + (activity.strain || 0), 0) / Math.min(activityData.length, 7)
+    ? last7DaysData.reduce((sum, day) => sum + day.strain, 0) / Math.max(last7DaysData.length, 1)
     : latestActivity?.score || 0
 
   const formatDuration = (minutes: number) => {
@@ -234,20 +319,6 @@ export function WorkoutAnalysis() {
           </Card>
         )}
 
-        {connectedWearable === 'oura' && latestActivity?.heartRateZones && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">HR Zones</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Object.values(latestActivity.heartRateZones).filter(zone => zone && zone > 0).length}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Active zones today</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Charts */}
@@ -276,93 +347,79 @@ export function WorkoutAnalysis() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Heart Rate Zones</CardTitle>
-            <CardDescription>
-              {connectedWearable === 'oura' ? 'Time spent in each heart rate zone' : 'Average and max heart rate trends'}
-            </CardDescription>
+            <CardTitle>Heart Rate Trends</CardTitle>
+            <CardDescription>Average and max heart rate trends</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                {connectedWearable === 'oura' && latestActivity?.heartRateZones ? (
-                  <BarChart data={[
-                    { zone: 'Zone 1', time: (latestActivity.heartRateZones.zone1 || 0) / 60, color: '#8884d8' },
-                    { zone: 'Zone 2', time: (latestActivity.heartRateZones.zone2 || 0) / 60, color: '#82ca9d' },
-                    { zone: 'Zone 3', time: (latestActivity.heartRateZones.zone3 || 0) / 60, color: '#ffc658' },
-                    { zone: 'Zone 4', time: (latestActivity.heartRateZones.zone4 || 0) / 60, color: '#ff7c7c' },
-                    { zone: 'Zone 5', time: (latestActivity.heartRateZones.zone5 || 0) / 60, color: '#8dd1e1' },
-                    { zone: 'Zone 6', time: (latestActivity.heartRateZones.zone6 || 0) / 60, color: '#d084d0' },
-                  ].filter(item => item.time > 0)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="zone" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => [`${Math.round(value as number)} min`, 'Time in Zone']} />
-                    <Bar dataKey="time" fill="#8884d8" />
-                  </BarChart>
-                ) : (
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="avgHR" stroke="#8884d8" strokeWidth={2} name="Avg HR" />
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="avgHR" stroke="#8884d8" strokeWidth={2} name="Avg HR" />
+                  {connectedWearable === 'whoop' && (
                     <Line type="monotone" dataKey="maxHR" stroke="#82ca9d" strokeWidth={2} name="Max HR" />
-                  </LineChart>
-                )}
+                  )}
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Workouts */}
+      {/* Daily Activity Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Workouts</CardTitle>
-          <CardDescription>Your latest training sessions</CardDescription>
+          <CardTitle>Daily Activity Summary</CardTitle>
+          <CardDescription>Daily aggregated strain and calories</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {activityData.slice(0, 5).map((activity, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+            {Array.from(aggregatedByDate.entries())
+              .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime()) // Sort by date descending (newest first)
+              .slice(0, 7) // Show last 7 days
+              .map(([date, data], index) => (
+              <div key={date} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
                     <Activity className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
                     <p className="font-medium">
-                      {connectedWearable === 'whoop' ? 'Workout' : 'Daily Activity'}
+                      {connectedWearable === 'whoop' ? `${data.workoutCount} Workout${data.workoutCount !== 1 ? 's' : ''}` : 'Daily Activity'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(activity.date).toLocaleDateString()}
+                      {new Date(date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center space-x-4">
                     <div>
-                      <p className="text-sm font-medium">{activity.calories} cal</p>
+                      <p className="text-sm font-medium">{data.calories} cal</p>
                       <p className="text-xs text-muted-foreground">
-                        {connectedWearable === 'whoop' ? `Strain: ${activity.strain?.toFixed(1) || "0.0"}` : 
-                         activity.steps ? `${activity.steps.toLocaleString()} steps` : 'Activity'}
+                        {connectedWearable === 'whoop' ? `Total Strain: ${data.strain.toFixed(1)}` : 
+                         data.steps ? `${data.steps.toLocaleString()} steps` : 'Activity'}
                       </p>
                     </div>
-                    {(connectedWearable === 'whoop' && activity.strain) && (
+                    {(connectedWearable === 'whoop' && data.strain > 0) && (
                       <Badge
                         variant={
-                          activity.strain >= 14
+                          data.strain >= 14
                             ? "destructive"
-                            : activity.strain >= 10
+                            : data.strain >= 10
                               ? "default"
                               : "secondary"
                         }
                       >
-                        {getStrainLevel(activity.strain)}
+                        {getStrainLevel(data.strain)}
                       </Badge>
                     )}
-                    {connectedWearable === 'oura' && activity.score && (
+                    {connectedWearable === 'oura' && data.score && (
                       <Badge variant="default">
-                        Score: {activity.score}
+                        Score: {data.score}
                       </Badge>
                     )}
                   </div>

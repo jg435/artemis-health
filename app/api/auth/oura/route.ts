@@ -16,19 +16,19 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // Check if user already has Whoop connected
+      // Check if user already has Whoop or Garmin connected
       const { createClient } = require('@supabase/supabase-js');
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
       
-      const { data: existingWhoopConnection } = await supabase
+      const { data: existingConnections } = await supabase
         .from('user_integrations')
         .select('*')
         .eq('user_id', user.id)
-        .eq('integration_type', 'whoop')
-        .single();
+        .in('integration_type', ['whoop', 'garmin']);
 
-      if (existingWhoopConnection) {
-        return NextResponse.redirect(new URL('/?error=whoop_already_connected', request.url));
+      if (existingConnections && existingConnections.length > 0) {
+        const connectedDevice = existingConnections[0].integration_type;
+        return NextResponse.redirect(new URL(`/?error=${connectedDevice}_already_connected`, request.url));
       }
     }
   } catch (error) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('client_id', clientId);
   authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('scope', 'personal daily session');
+  authUrl.searchParams.append('scope', 'personal daily session heartrate');
   authUrl.searchParams.append('state', state);
 
   // Store state in a cookie for validation
