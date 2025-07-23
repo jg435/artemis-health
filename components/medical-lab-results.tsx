@@ -45,6 +45,15 @@ export function MedicalLabResults() {
     const file = event.target.files?.[0]
     if (!file) return
 
+    // Prevent uploads in demo mode
+    if (user?.isDemo) {
+      alert("Lab result uploads are not available in demo mode. Please create an account to upload and track your medical lab results.")
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
 
     if (!file.type.startsWith("image/")) {
       setUploadError("Please select an image file")
@@ -63,7 +72,6 @@ export function MedicalLabResults() {
 
         try {
           if (user?.isDemo) {
-            // In demo mode, simulate the analysis without saving
             const mockResults: LabResult[] = [
               {
                 "Test Name": "Total Cholesterol",
@@ -209,7 +217,7 @@ export function MedicalLabResults() {
             <div className="flex gap-2">
               <Button
                 onClick={triggerFileUpload}
-                disabled={uploading}
+                disabled={uploading || user?.isDemo}
                 className="flex items-center gap-2"
               >
                 {uploading ? (
@@ -217,7 +225,7 @@ export function MedicalLabResults() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {uploading ? "Processing..." : "Upload Image"}
+                {user?.isDemo ? "Demo Mode - Create account to upload results" : uploading ? "Processing..." : "Upload Image"}
               </Button>
             </div>
             
@@ -227,6 +235,7 @@ export function MedicalLabResults() {
               accept="image/*"
               onChange={handleFileUpload}
               className="hidden"
+              disabled={user?.isDemo}
             />
 
             {uploadSuccess && (

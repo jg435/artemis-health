@@ -151,6 +151,11 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       return
     }
 
+    // Prevent AI analysis in demo mode
+    if (user?.isDemo) {
+      alert("AI food analysis is not available in demo mode. Please create an account to use photo analysis and advanced nutrition tracking.")
+      return
+    }
 
     setIsAnalyzing(true)
     try {
@@ -194,53 +199,9 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       return
     }
 
-    // In demo mode, simulate saving but don't persist
+    // In demo mode, prevent food logging and ask to create account
     if (user?.isDemo) {
-      const newEntry: FoodEntry = {
-        id: Date.now().toString(),
-        photo: photo || undefined,
-        mealType: currentEntry.mealType!,
-        foodName: currentEntry.foodName!,
-        description: currentEntry.description || "",
-        quantity: currentEntry.quantity || 1,
-        unit: currentEntry.unit || "serving",
-        mealTime: currentEntry.mealTime || new Date().toTimeString().slice(0, 5),
-        estimatedCalories: currentEntry.estimatedCalories,
-        macros: currentEntry.macros,
-        createdAt: new Date(),
-      }
-
-      // Add to local state only (not persisted)
-      setFoodEntries(prev => [newEntry, ...prev])
-      
-      // Notify other components about the new demo entry
-      const demoFoodEntry = {
-        id: newEntry.id,
-        meal_type: newEntry.mealType,
-        food_name: newEntry.foodName,
-        calories: newEntry.estimatedCalories || 0,
-        logged_at: newEntry.createdAt.toISOString(),
-        photo_url: newEntry.photo
-      }
-      window.dispatchEvent(new CustomEvent('demoFoodAdded', { detail: demoFoodEntry }))
-      
-      // Reset form
-      setCurrentEntry({
-        mealType: "",
-        foodName: "",
-        description: "",
-        quantity: 1,
-        unit: "serving",
-        mealTime: new Date().toTimeString().slice(0, 5),
-      })
-      setPhoto(null)
-      setIsOpen(false)
-      
-      // Trigger refresh of nutrition data
-      if (onFoodLogged) {
-        onFoodLogged()
-      }
-      
+      alert("Food logging is not available in demo mode. Please create an account to log your meals and track your nutrition.")
       return
     }
 
@@ -334,9 +295,9 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       {/* Add Food Button */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button className="w-full" size="lg">
+          <Button className="w-full" size="lg" disabled={user?.isDemo}>
             <Utensils className="w-5 h-5 mr-2" />
-            Log Food
+            {user?.isDemo ? "Demo Mode - Create account to log food" : "Log Food"}
           </Button>
         </DialogTrigger>
 
