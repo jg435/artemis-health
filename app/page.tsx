@@ -18,6 +18,7 @@ import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
 import { GarminConnect } from "@/components/garmin-connect"
 import { AuthDialog } from "@/components/auth-dialog"
+import Image from 'next/image'
 
 export default function HealthDashboard() {
   const { user, isLoading, login, logout } = useAuth()
@@ -95,10 +96,21 @@ export default function HealthDashboard() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to Artemis</h1>
-          <p className="text-xl text-gray-600 mb-8">Your comprehensive health tracking dashboard.<br />Aggregate all your medical data in one place to drive ai powered insights</p>
+          <p className="text-xl text-gray-600 mb-6">
+            Your comprehensive health tracking dashboard.<br />
+            Get AI powered insights by aggregating your fitness, nutrition and medical data in one place.
+          </p>
+  
+          {/* Logo Row */}
+          <div className="flex justify-center gap-6 mb-8">
+            <Image src="/logos/whoop.svg" alt="Whoop Logo" width={100} height={30} />
+            <Image src="/logos/oura.webp" alt="Oura Logo" width={100} height={30} />
+          </div>
+  
           <Button onClick={() => setShowAuthDialog(true)} size="lg">
             Get Started
           </Button>
+  
           <AuthDialog 
             open={showAuthDialog} 
             onOpenChange={setShowAuthDialog}
@@ -120,7 +132,7 @@ export default function HealthDashboard() {
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Artemis</h1>
                 <p className="text-muted-foreground text-sm sm:text-base">
-                  Welcome back, {user.name}! Your comprehensive health tracking dashboard.<br />Aggregate all your medical data in one place to drive ai powered insights
+                  Welcome back, {user.name}! <br />
                 </p>
               </div>
               <div className="flex items-center space-x-2 sm:space-x-4">
