@@ -1,7 +1,7 @@
 import type { OuraSleepPeriod, OuraReadiness, OuraActivity } from './oura';
 import type { WhoopRecovery, WhoopSleep, WhoopWorkout } from './whoop';
 
-export type WearableType = 'whoop' | 'oura' | null;
+export type WearableType = 'whoop' | 'oura' | 'fitbit' | 'garmin' | null;
 
 export interface UnifiedRecoveryData {
   source: WearableType;

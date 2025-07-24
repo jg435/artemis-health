@@ -60,12 +60,12 @@ export function RecoveryDashboard() {
         let hasConnection = false
 
         // If specific wearable selected, only fetch from that
-        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura', 'fitbit']
 
         for (const wearable of wearablesToTry) {
           if (wearable === 'whoop') {
             try {
-              const whoopResponse = await fetch('/api/whoop/recovery?days=30', {
+              const whoopResponse = await fetch('/api/whoop/recovery?days=60', {
                 headers: apiHeaders
               })
               
@@ -98,7 +98,7 @@ export function RecoveryDashboard() {
 
           if (wearable === 'oura') {
             try {
-              const ouraResponse = await fetch('/api/oura/readiness?days=30', {
+              const ouraResponse = await fetch('/api/oura/readiness?days=60', {
                 headers: apiHeaders
               })
               
@@ -127,6 +127,41 @@ export function RecoveryDashboard() {
               }
             } catch (error) {
               console.log("Oura readiness not available:", error)
+            }
+          }
+
+          if (wearable === 'fitbit') {
+            try {
+              const fitbitResponse = await fetch('/api/fitbit/heart-rate?days=60', {
+                headers: apiHeaders
+              })
+              
+              if (fitbitResponse.ok) {
+                const fitbitData = await fitbitResponse.json()
+                const fitbitRecords = fitbitData.recovery || []
+                
+                if (fitbitRecords.length > 0) {
+                  const fitbitRecoveryData: UnifiedRecoveryData[] = fitbitRecords.map((record: any) => ({
+                    source: 'fitbit' as const,
+                    score: record.recovery_score || record.sleep_performance || 0,
+                    date: record.date || new Date().toISOString().split('T')[0],
+                    metrics: {
+                      heartRate: record.resting_heart_rate,
+                      hrv: record.hrv_rmssd,
+                      temperature: record.body_temperature,
+                      sleepPerformance: record.sleep_performance,
+                    }
+                  }))
+                  
+                  recoveryDataFromApis.push(...fitbitRecoveryData)
+                  if (!hasConnection) {
+                    setConnectedWearable('fitbit')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Fitbit heart rate/recovery not available:", error)
             }
           }
         }
@@ -170,7 +205,7 @@ export function RecoveryDashboard() {
           <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop or Oura device to view recovery data
+            Connect your Whoop, Oura, or Fitbit device to view recovery data
           </p>
         </div>
       </div>
@@ -178,7 +213,9 @@ export function RecoveryDashboard() {
   }
 
   const latestData = recoveryData[0]
-  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : 
+                      connectedWearable === 'oura' ? 'Oura Ring' : 
+                      connectedWearable === 'fitbit' ? 'Fitbit' : 'Wearable'
 
   const chartData = recoveryData
     .slice()

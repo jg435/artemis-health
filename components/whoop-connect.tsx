@@ -11,9 +11,10 @@ interface WhoopConnectProps {
   onConnect?: () => void
   ouraConnected?: boolean
   garminConnected?: boolean
+  fitbitConnected?: boolean
 }
 
-export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected = false }: WhoopConnectProps) {
+export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected = false, fitbitConnected = false }: WhoopConnectProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
@@ -187,59 +188,86 @@ export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected
     )
   }
 
-  const otherDeviceConnected = ouraConnected || garminConnected
-  const connectedDeviceName = ouraConnected ? 'Oura Ring' : garminConnected ? 'Garmin device' : ''
+  const otherDeviceConnected = ouraConnected || garminConnected || fitbitConnected
+  const connectedDeviceName = ouraConnected ? 'Oura Ring' : 
+                              garminConnected ? 'Garmin device' : 
+                              fitbitConnected ? 'Fitbit device' : ''
 
   return (
     <Card className={otherDeviceConnected ? 'opacity-60' : ''}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-red-500" />
-          Connect Whoop
-        </CardTitle>
-        <CardDescription>
-          {otherDeviceConnected 
-            ? `Disconnect your ${connectedDeviceName} first to connect Whoop device`
-            : "Sync your recovery, sleep, and workout data from Whoop"
-          }
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-yellow-500" />
-          <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-            Not Connected
-          </Badge>
-        </div>
-        
-        {otherDeviceConnected && (
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-yellow-800">
-              Only one wearable device can be connected at a time. Please disconnect your {connectedDeviceName} to connect your Whoop device.
-            </p>
-          </div>
-        )}
-        
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Connect your Whoop device to get:
-          </p>
-          <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li>Real-time recovery scores</li>
-            <li>Detailed sleep analysis</li>
-            <li>Workout strain tracking</li>
-            <li>Heart rate variability data</li>
-          </ul>
-        </div>
+      {otherDeviceConnected ? (
+        // Compact layout when another device is connected
+        <>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Zap className="h-5 w-5 text-red-500" />
+                <CardTitle className="text-lg">
+                  Whoop
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-yellow-700 border-yellow-300">
+                Not Connected
+              </Badge>
+            </div>
+            <CardDescription>
+              {`Disconnect your ${connectedDeviceName} first to connect Whoop`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={handleConnect} 
+              disabled={isConnecting || otherDeviceConnected}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              {`Disconnect ${connectedDeviceName} First`}
+            </Button>
+          </CardContent>
+        </>
+      ) : (
+        // Full layout when no other device is connected
+        <>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-red-500" />
+              Connect Whoop
+            </CardTitle>
+            <CardDescription>
+              Sync your recovery, sleep, and workout data from Whoop
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+              <Badge variant="outline" className="text-yellow-700 border-yellow-300">
+                Not Connected
+              </Badge>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Connect your Whoop device to get:
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Real-time recovery scores</li>
+                <li>Detailed sleep analysis</li>
+                <li>Workout strain tracking</li>
+                <li>Heart rate variability data</li>
+              </ul>
+            </div>
 
-        <Button 
-          onClick={handleConnect} 
-          disabled={isConnecting || otherDeviceConnected}
-          className="w-full"
-        >
-          {isConnecting ? 'Connecting...' : otherDeviceConnected ? `Disconnect ${connectedDeviceName} First` : 'Connect Whoop'}
-        </Button>
-      </CardContent>
+            <Button 
+              onClick={handleConnect} 
+              disabled={isConnecting}
+              className="w-full"
+            >
+              {isConnecting ? 'Connecting...' : 'Connect Whoop'}
+            </Button>
+          </CardContent>
+        </>
+      )}
     </Card>
   )
 }

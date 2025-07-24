@@ -64,12 +64,12 @@ export function SleepAnalysis() {
         let hasConnection = false
 
         // If specific wearable selected, only fetch from that
-        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura', 'fitbit']
 
         for (const wearable of wearablesToTry) {
           if (wearable === 'whoop') {
             try {
-              const whoopResponse = await fetch('/api/whoop/sleep?days=30', {
+              const whoopResponse = await fetch('/api/whoop/sleep?days=60', {
                 headers: apiHeaders
               })
               
@@ -105,7 +105,7 @@ export function SleepAnalysis() {
 
           if (wearable === 'oura') {
             try {
-              const ouraResponse = await fetch('/api/oura/sleep?days=30', {
+              const ouraResponse = await fetch('/api/oura/sleep?days=60', {
                 headers: apiHeaders
               })
               
@@ -138,6 +138,44 @@ export function SleepAnalysis() {
               }
             } catch (error) {
               console.log("Oura sleep not available:", error)
+            }
+          }
+
+          if (wearable === 'fitbit') {
+            try {
+              const fitbitResponse = await fetch('/api/fitbit/sleep?days=60', {
+                headers: apiHeaders
+              })
+              
+              if (fitbitResponse.ok) {
+                const fitbitData = await fitbitResponse.json()
+                const fitbitRecords = fitbitData.sleep || []
+                
+                if (fitbitRecords.length > 0) {
+                  const fitbitSleepData: UnifiedSleepData[] = fitbitRecords.map((record: any) => ({
+                    source: 'fitbit' as const,
+                    date: record.date || new Date().toISOString().split('T')[0],
+                    score: record.sleep_score || (record.sleep_efficiency * 100) || 0,
+                    duration: record.total_sleep_duration || 0,
+                    efficiency: record.sleep_efficiency || 0,
+                    stages: {
+                      deep: record.deep_sleep_duration || 0,
+                      light: record.light_sleep_duration || 0,
+                      rem: record.rem_sleep_duration || 0,
+                      awake: record.awake_duration || 0,
+                    },
+                    onsetLatency: record.sleep_onset_latency
+                  }))
+                  
+                  sleepDataFromApis.push(...fitbitSleepData)
+                  if (!hasConnection) {
+                    setConnectedWearable('fitbit')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Fitbit sleep not available:", error)
             }
           }
         }
@@ -181,7 +219,7 @@ export function SleepAnalysis() {
           <Moon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop or Oura device to view detailed sleep analysis
+            Connect your Whoop, Oura, or Fitbit device to view detailed sleep analysis
           </p>
         </div>
       </div>
@@ -189,7 +227,9 @@ export function SleepAnalysis() {
   }
 
   const latestSleep = sleepData[0]
-  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : 
+                      connectedWearable === 'oura' ? 'Oura Ring' : 
+                      connectedWearable === 'fitbit' ? 'Fitbit' : 'Wearable'
 
   const chartData = sleepData
     .slice()

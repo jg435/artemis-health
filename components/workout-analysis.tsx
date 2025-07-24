@@ -57,12 +57,12 @@ export function WorkoutAnalysis() {
         let hasConnection = false
 
         // If specific wearable selected, only fetch from that
-        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura', 'fitbit']
 
         for (const wearable of wearablesToTry) {
           if (wearable === 'whoop') {
             try {
-              const whoopResponse = await fetch('/api/whoop/workouts?days=30', {
+              const whoopResponse = await fetch('/api/whoop/workouts?days=60', {
                 headers: apiHeaders
               })
               
@@ -94,7 +94,7 @@ export function WorkoutAnalysis() {
 
           if (wearable === 'oura') {
             try {
-              const ouraResponse = await fetch('/api/oura/activity?days=30', {
+              const ouraResponse = await fetch('/api/oura/activity?days=60', {
                 headers: apiHeaders
               })
               
@@ -122,6 +122,40 @@ export function WorkoutAnalysis() {
               }
             } catch (error) {
               console.log("Oura activity not available:", error)
+            }
+          }
+
+          if (wearable === 'fitbit') {
+            try {
+              const fitbitResponse = await fetch('/api/fitbit/activity?days=60', {
+                headers: apiHeaders
+              })
+              
+              if (fitbitResponse.ok) {
+                const fitbitData = await fitbitResponse.json()
+                const fitbitRecords = fitbitData.activities || []
+                
+                if (fitbitRecords.length > 0) {
+                  const fitbitActivityData: UnifiedActivityData[] = fitbitRecords.map((record: any) => ({
+                    source: 'fitbit' as const,
+                    date: record.start_time ? record.start_time.split('T')[0] : new Date().toISOString().split('T')[0],
+                    calories: record.calories || 0,
+                    distance: record.distance ? record.distance / 1000 : 0, // Convert meters to km
+                    averageHeartRate: record.average_heart_rate,
+                    maxHeartRate: record.max_heart_rate,
+                    duration: record.duration ? Math.round(record.duration / 60) : 0, // Convert seconds to minutes
+                    sportName: record.activity_type || record.sport_type || 'Activity'
+                  }))
+                  
+                  activityDataFromApis.push(...fitbitActivityData)
+                  if (!hasConnection) {
+                    setConnectedWearable('fitbit')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Fitbit activity not available:", error)
             }
           }
         }
@@ -165,7 +199,7 @@ export function WorkoutAnalysis() {
           <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Connect Your Wearable Device</h3>
           <p className="text-muted-foreground">
-            Connect your Whoop or Oura device to view activity and workout data
+            Connect your Whoop, Oura, or Fitbit device to view activity and workout data
           </p>
         </div>
       </div>
@@ -173,7 +207,9 @@ export function WorkoutAnalysis() {
   }
 
   const latestActivity = activityData[0]
-  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : connectedWearable === 'oura' ? 'Oura Ring' : 'Wearable'
+  const wearableName = connectedWearable === 'whoop' ? 'Whoop' : 
+                      connectedWearable === 'oura' ? 'Oura Ring' : 
+                      connectedWearable === 'fitbit' ? 'Fitbit' : 'Wearable'
 
   // Aggregate data by date for chart display
   const aggregatedByDate = new Map<string, {

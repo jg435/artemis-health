@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 import { WhoopAuthService } from './whoop-auth'
 import { OuraAuthService } from './oura-auth'
 import { GarminAuthService } from './garmin-auth'
+import { FitbitAuthService } from './fitbit-auth'
+import { fitbitAPI } from './fitbit-service'
 
 interface SyncResult {
   success: boolean
@@ -19,6 +21,7 @@ export class WearableDataSyncService {
   private whoopAuth = new WhoopAuthService()
   private ouraAuth = new OuraAuthService()
   private garminAuth = new GarminAuthService()
+  private fitbitAuth = new FitbitAuthService()
 
   /**
    * Sync all wearable data for a user (recovery, sleep, activity)
@@ -54,6 +57,16 @@ export class WearableDataSyncService {
       }
     }
 
+    // Sync Fitbit data
+    const fitbitToken = await this.fitbitAuth.getValidTokenForUser(userId)
+    if (fitbitToken) {
+      results.fitbit = {
+        recovery: await this.syncFitbitRecovery(userId),
+        sleep: await this.syncFitbitSleep(userId),
+        activity: await this.syncFitbitActivity(userId)
+      }
+    }
+
     return results
   }
 
@@ -69,9 +82,9 @@ export class WearableDataSyncService {
         throw new Error('No valid Whoop token')
       }
 
-      // Get last 30 days of data
+      // Get last 60 days of data
       const endDate = new Date()
-      const startDate = new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000))
+      const startDate = new Date(endDate.getTime() - (60 * 24 * 60 * 60 * 1000))
 
       const response = await fetch(
         `https://api.prod.whoop.com/developer/v1/recovery?start=${startDate.toISOString()}&end=${endDate.toISOString()}`,
@@ -133,7 +146,7 @@ export class WearableDataSyncService {
       }
 
       const endDate = new Date()
-      const startDate = new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000))
+      const startDate = new Date(endDate.getTime() - (60 * 24 * 60 * 60 * 1000))
 
       const response = await fetch(
         `https://api.prod.whoop.com/developer/v1/activity/sleep?start=${startDate.toISOString()}&end=${endDate.toISOString()}`,
@@ -200,7 +213,7 @@ export class WearableDataSyncService {
       }
 
       const endDate = new Date()
-      const startDate = new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000))
+      const startDate = new Date(endDate.getTime() - (60 * 24 * 60 * 60 * 1000))
 
       const response = await fetch(
         `https://api.prod.whoop.com/developer/v1/activity/workout?start=${startDate.toISOString()}&end=${endDate.toISOString()}`,
@@ -266,7 +279,7 @@ export class WearableDataSyncService {
       }
 
       const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
 
       const response = await fetch(
         `https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`,
@@ -326,7 +339,7 @@ export class WearableDataSyncService {
       }
 
       const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
 
       const response = await fetch(
         `https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`,
@@ -395,7 +408,7 @@ export class WearableDataSyncService {
       }
 
       const endDate = new Date().toISOString().split('T')[0]
-      const startDate = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
 
       // Sync daily activity summary
       const response = await fetch(
@@ -464,6 +477,187 @@ export class WearableDataSyncService {
   }
 
   /**
+   * Sync Fitbit recovery data
+   */
+  private async syncFitbitRecovery(userId: string): Promise<SyncResult> {
+    try {
+      await this.updateSyncStatus(userId, 'fitbit', 'recovery', 'started')
+
+      const token = await this.fitbitAuth.getValidTokenForUser(userId)
+      if (!token) {
+        throw new Error('No valid Fitbit token')
+      }
+
+      // Get last 60 days of data
+      const endDate = new Date().toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+
+      const multiDayData = await fitbitAPI.getMultipleDaysData(
+        token,
+        startDate,
+        endDate,
+        ['heartrate', 'sleep']
+      )
+
+      let syncedCount = 0
+
+      for (const recovery of multiDayData.recovery) {
+        await supabase
+          .from('wearable_recovery_data')
+          .upsert({
+            user_id: userId,
+            provider: 'fitbit',
+            date: recovery.date,
+            recovery_score: recovery.recovery_score || null,
+            hrv_rmssd: recovery.hrv_rmssd || null,
+            resting_heart_rate: recovery.resting_heart_rate || null,
+            body_temperature: recovery.body_temperature || null,
+            skin_temp: recovery.skin_temp || null,
+            spo2: recovery.spo2 || null,
+            sleep_performance: recovery.sleep_performance || null,
+            strain: recovery.strain || null,
+            raw_data: recovery.raw_data,
+            data_date: recovery.date,
+            synced_at: new Date().toISOString()
+          })
+        
+        syncedCount++
+      }
+
+      await this.updateSyncStatus(userId, 'fitbit', 'recovery', 'success', syncedCount)
+      return { success: true, synced: syncedCount }
+    } catch (error) {
+      console.error('Error syncing Fitbit recovery:', error)
+      await this.updateSyncStatus(userId, 'fitbit', 'recovery', 'error', 0, error instanceof Error ? error.message : 'Unknown error')
+      return { success: false, synced: 0, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Sync Fitbit sleep data
+   */
+  private async syncFitbitSleep(userId: string): Promise<SyncResult> {
+    try {
+      await this.updateSyncStatus(userId, 'fitbit', 'sleep', 'started')
+
+      const token = await this.fitbitAuth.getValidTokenForUser(userId)
+      if (!token) {
+        throw new Error('No valid Fitbit token')
+      }
+
+      const endDate = new Date().toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+
+      const multiDayData = await fitbitAPI.getMultipleDaysData(
+        token,
+        startDate,
+        endDate,
+        ['sleep']
+      )
+
+      let syncedCount = 0
+
+      for (const sleep of multiDayData.sleep) {
+        await supabase
+          .from('wearable_sleep_data')
+          .upsert({
+            user_id: userId,
+            provider: 'fitbit',
+            date: sleep.date,
+            sleep_start: sleep.sleep_start,
+            sleep_end: sleep.sleep_end,
+            total_sleep_duration: sleep.total_sleep_duration,
+            deep_sleep_duration: sleep.deep_sleep_duration,
+            rem_sleep_duration: sleep.rem_sleep_duration,
+            light_sleep_duration: sleep.light_sleep_duration,
+            awake_duration: sleep.awake_duration,
+            sleep_efficiency: sleep.sleep_efficiency,
+            sleep_score: sleep.sleep_score,
+            sleep_onset_latency: sleep.sleep_onset_latency,
+            wake_count: sleep.wake_count,
+            average_heart_rate: sleep.average_heart_rate,
+            lowest_heart_rate: sleep.lowest_heart_rate,
+            average_hrv: sleep.average_hrv,
+            raw_data: sleep.raw_data,
+            data_date: sleep.sleep_start || sleep.date,
+            synced_at: new Date().toISOString()
+          })
+        
+        syncedCount++
+      }
+
+      await this.updateSyncStatus(userId, 'fitbit', 'sleep', 'success', syncedCount)
+      return { success: true, synced: syncedCount }
+    } catch (error) {
+      console.error('Error syncing Fitbit sleep:', error)
+      await this.updateSyncStatus(userId, 'fitbit', 'sleep', 'error', 0, error instanceof Error ? error.message : 'Unknown error')
+      return { success: false, synced: 0, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
+   * Sync Fitbit activity data
+   */
+  private async syncFitbitActivity(userId: string): Promise<SyncResult> {
+    try {
+      await this.updateSyncStatus(userId, 'fitbit', 'activity', 'started')
+
+      const token = await this.fitbitAuth.getValidTokenForUser(userId)
+      if (!token) {
+        throw new Error('No valid Fitbit token')
+      }
+
+      const endDate = new Date().toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - (60 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+
+      const multiDayData = await fitbitAPI.getMultipleDaysData(
+        token,
+        startDate,
+        endDate,
+        ['activity']
+      )
+
+      let syncedCount = 0
+
+      for (const activity of multiDayData.activities) {
+        await supabase
+          .from('wearable_activity_data')
+          .upsert({
+            user_id: userId,
+            provider: 'fitbit',
+            activity_id: activity.activity_id,
+            activity_type: activity.activity_type,
+            sport_type: activity.sport_type,
+            start_time: activity.start_time,
+            end_time: activity.end_time,
+            duration: activity.duration,
+            distance: activity.distance,
+            calories: activity.calories,
+            average_heart_rate: activity.average_heart_rate,
+            max_heart_rate: activity.max_heart_rate,
+            strain: activity.strain,
+            kilojoules: activity.kilojoules,
+            altitude_gain: activity.altitude_gain,
+            altitude_loss: activity.altitude_loss,
+            zones: activity.zones,
+            raw_data: activity.raw_data,
+            data_date: activity.start_time || new Date().toISOString(),
+            synced_at: new Date().toISOString()
+          })
+        
+        syncedCount++
+      }
+
+      await this.updateSyncStatus(userId, 'fitbit', 'activity', 'success', syncedCount)
+      return { success: true, synced: syncedCount }
+    } catch (error) {
+      console.error('Error syncing Fitbit activity:', error)
+      await this.updateSyncStatus(userId, 'fitbit', 'activity', 'error', 0, error instanceof Error ? error.message : 'Unknown error')
+      return { success: false, synced: 0, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  /**
    * Update sync status in database
    */
   private async updateSyncStatus(
@@ -499,7 +693,7 @@ export class WearableDataSyncService {
   /**
    * Get data from Supabase (for trainers viewing client data)
    */
-  async getStoredRecoveryData(userId: string, days: number = 30) {
+  async getStoredRecoveryData(userId: string, days: number = 60) {
     const { data, error } = await supabase
       .from('wearable_recovery_data')
       .select('*')
@@ -515,7 +709,7 @@ export class WearableDataSyncService {
     return data || []
   }
 
-  async getStoredSleepData(userId: string, days: number = 30) {
+  async getStoredSleepData(userId: string, days: number = 60) {
     const { data, error } = await supabase
       .from('wearable_sleep_data')
       .select('*')
@@ -531,7 +725,7 @@ export class WearableDataSyncService {
     return data || []
   }
 
-  async getStoredActivityData(userId: string, days: number = 30) {
+  async getStoredActivityData(userId: string, days: number = 60) {
     const { data, error } = await supabase
       .from('wearable_activity_data')
       .select('*')

@@ -7,14 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Circle, Loader2 } from "lucide-react"
 
-interface OuraConnectProps {
+interface FitbitConnectProps {
   onConnect?: () => void;
   whoopConnected?: boolean;
+  ouraConnected?: boolean;
   garminConnected?: boolean;
-  fitbitConnected?: boolean;
 }
 
-export function OuraConnect({ onConnect, whoopConnected = false, garminConnected = false, fitbitConnected = false }: OuraConnectProps) {
+export function FitbitConnect({ 
+  onConnect, 
+  whoopConnected = false, 
+  ouraConnected = false,
+  garminConnected = false 
+}: FitbitConnectProps) {
   const { user } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -22,11 +27,11 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
 
   const checkConnection = async () => {
     try {
-      // Check only Oura connection status
-      const ouraResponse = await fetch('/api/oura/connection-status')
-      const ouraData = await ouraResponse.json()
+      // Check only Fitbit connection status
+      const fitbitResponse = await fetch('/api/fitbit/connection-status')
+      const fitbitData = await fitbitResponse.json()
       
-      setIsConnected(ouraData.connected || false)
+      setIsConnected(fitbitData.connected || false)
     } catch (error) {
       console.log('Connection check failed:', error)
       setIsConnected(false)
@@ -40,76 +45,85 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
   }, [])
 
   const handleConnect = async () => {
-    // Prevent Oura connection in demo mode
+    // Prevent Fitbit connection in demo mode
     if (user?.isDemo) {
-      alert('Oura connection is not available in demo mode. You are already viewing demo data from a connected Oura device.')
+      alert('Fitbit connection is not available in demo mode. You are already viewing demo data from a connected Fitbit device.')
       return
     }
 
     // Prevent connection if another device is already connected
     if (whoopConnected) {
-      alert('You already have a Whoop device connected. Please disconnect your Whoop device before connecting your Oura Ring.')
+      alert('You already have a Whoop device connected. Please disconnect your Whoop device before connecting your Fitbit.')
+      return
+    }
+
+    if (ouraConnected) {
+      alert('You already have an Oura Ring connected. Please disconnect your Oura Ring before connecting your Fitbit.')
       return
     }
 
     if (garminConnected) {
-      alert('You already have a Garmin device connected. Please disconnect your Garmin device before connecting your Oura Ring.')
-      return
-    }
-
-    if (fitbitConnected) {
-      alert('You already have a Fitbit device connected. Please disconnect your Fitbit device before connecting your Oura Ring.')
+      alert('You already have a Garmin device connected. Please disconnect your Garmin device before connecting your Fitbit.')
       return
     }
 
     try {
       setIsConnecting(true)
-      // Redirect to Oura OAuth
-      window.location.href = '/api/auth/oura'
+      
+      // Get authorization URL from backend
+      const response = await fetch(`/api/auth/fitbit?userId=${user?.id}`)
+      const data = await response.json()
+      
+      if (data.authUrl) {
+        // Redirect to Fitbit OAuth
+        window.location.href = data.authUrl
+      } else {
+        throw new Error('Failed to get authorization URL')
+      }
     } catch (error) {
-      console.error('Failed to connect to Oura:', error)
+      console.error('Failed to connect to Fitbit:', error)
       setIsConnecting(false)
     }
   }
 
   const handleDisconnect = async () => {
     if (user?.isDemo) {
-      alert('Oura disconnection is not available in demo mode.')
+      alert('Fitbit disconnection is not available in demo mode.')
       return
     }
 
     try {
       setIsConnecting(true)
-      const response = await fetch('/api/auth/oura/disconnect', { method: 'POST' })
+      const response = await fetch('/api/auth/fitbit/disconnect', { method: 'POST' })
       
       if (response.ok) {
         setIsConnected(false)
         if (onConnect) onConnect()
       }
     } catch (error) {
-      console.error('Failed to disconnect Oura:', error)
+      console.error('Failed to disconnect Fitbit:', error)
     } finally {
       setIsConnecting(false)
     }
   }
 
-  if (isLoading && !whoopConnected && !garminConnected) {
+  if (isLoading && !whoopConnected && !ouraConnected && !garminConnected) {
     return (
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-6">
           <div className="flex items-center space-x-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm text-muted-foreground">Checking Oura connection...</span>
+            <span className="text-sm text-muted-foreground">Checking Fitbit connection...</span>
           </div>
         </CardContent>
       </Card>
     )
   }
 
-  const otherDeviceConnected = whoopConnected || garminConnected || fitbitConnected
+  const otherDeviceConnected = whoopConnected || ouraConnected || garminConnected
   const connectedDeviceName = whoopConnected ? 'Whoop' : 
-                              garminConnected ? 'Garmin' : 
-                              fitbitConnected ? 'Fitbit' : ''
+                             ouraConnected ? 'Oura Ring' : 
+                             garminConnected ? 'Garmin' : ''
 
   if (isConnected) {
     return (
@@ -119,7 +133,7 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
             <div className="flex items-center space-x-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <CardTitle className="text-lg">
-                Oura Integration
+                Fitbit Integration
               </CardTitle>
             </div>
             <Badge variant="outline" className="text-green-600 border-green-200 bg-green-100">
@@ -128,8 +142,8 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
           </div>
           <CardDescription>
             {user?.isDemo 
-              ? "Demo mode: Viewing sample data from an Oura Ring"
-              : "Your Oura Ring is connected and syncing data"
+              ? "Demo mode: Viewing sample data from a Fitbit device"
+              : "Your Fitbit device is connected and syncing data"
             }
           </CardDescription>
         </CardHeader>
@@ -159,7 +173,7 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
               <div className="flex items-center space-x-2">
                 <Circle className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="text-lg">
-                  Oura Ring
+                  Fitbit
                 </CardTitle>
               </div>
               <Badge variant="outline" className="text-yellow-700 border-yellow-300">
@@ -167,7 +181,7 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
               </Badge>
             </div>
             <CardDescription>
-              {`Disconnect your ${connectedDeviceName} first to connect Oura Ring`}
+              {`Disconnect your ${connectedDeviceName} first to connect Fitbit`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -189,22 +203,22 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
             <div className="flex items-center space-x-2">
               <Circle className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="text-lg">
-                Connect Oura
+                Connect Fitbit
               </CardTitle>
             </div>
             <CardDescription>
-              Sync your sleep, readiness, and activity data from Oura Ring
+              Sync your activity, sleep, and heart rate data from Fitbit
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              <p className="mb-2">Connect your Oura Ring to get:</p>
+              <p className="mb-2">Connect your Fitbit device to get:</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Sleep quality and stages</li>
-                <li>Readiness and recovery scores</li>
-                <li>Daily activity and movement</li>
-                <li>Heart rate variability</li>
-                <li>Body temperature trends</li>
+                <li>Daily activity and steps</li>
+                <li>Sleep stages and efficiency</li>
+                <li>Heart rate and zones</li>
+                <li>Calories burned</li>
+                <li>Active minutes tracking</li>
               </ul>
             </div>
             <Button 
@@ -212,7 +226,7 @@ export function OuraConnect({ onConnect, whoopConnected = false, garminConnected
               disabled={isConnecting}
               className="w-full"
             >
-              {isConnecting ? 'Connecting...' : 'Connect Oura'}
+              {isConnecting ? 'Connecting...' : 'Connect Fitbit'}
             </Button>
           </CardContent>
         </>

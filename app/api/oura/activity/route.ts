@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const startDate = searchParams.get('start_date') || '2024-05-01'; // Cover user's data period
-    const endDate = searchParams.get('end_date') || getTodayDate(); // Default to today
+    const days = parseInt(searchParams.get('days') || '60', 10); // Default to 60 days
+    const startDate = searchParams.get('start_date') || getDateDaysAgo(days);
+    const endDate = searchParams.get('end_date') || getTodayDate();
 
     const activity = await ouraAPI.getActivity(ouraAccessToken, startDate, endDate);
     

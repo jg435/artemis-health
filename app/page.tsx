@@ -17,9 +17,11 @@ import { NutritionDashboard } from "@/components/nutrition-dashboard"
 import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
 import { GarminConnect } from "@/components/garmin-connect"
+import { FitbitConnect } from "@/components/fitbit-connect"
 import { AuthDialog } from "@/components/auth-dialog"
 import { TrainerClientSwitcher } from "@/components/trainer-client-switcher"
 import { ClientTrainerManagement } from "@/components/client-trainer-management"
+import { FeedbackButton } from "@/components/feedback-button"
 import Image from 'next/image'
 
 export default function HealthDashboard() {
@@ -32,25 +34,29 @@ export default function HealthDashboard() {
   const [connectionStates, setConnectionStates] = useState({
     whoop: false,
     oura: false,
-    garmin: false
+    garmin: false,
+    fitbit: false
   })
 
   const checkAllConnections = async () => {
     try {
-      const [whoopResponse, ouraResponse, garminResponse] = await Promise.all([
+      const [whoopResponse, ouraResponse, garminResponse, fitbitResponse] = await Promise.all([
         fetch('/api/whoop/connection-status', { headers: apiHeaders }),
         fetch('/api/oura/connection-status', { headers: apiHeaders }),
-        fetch('/api/garmin/connection-status', { headers: apiHeaders })
+        fetch('/api/garmin/connection-status', { headers: apiHeaders }),
+        fetch('/api/fitbit/connection-status', { headers: apiHeaders })
       ])
       
       const whoopData = await whoopResponse.json()
       const ouraData = await ouraResponse.json()
       const garminData = await garminResponse.json()
+      const fitbitData = await fitbitResponse.json()
       
       setConnectionStates({
         whoop: whoopData.connected || false,
         oura: ouraData.connected || false,
-        garmin: garminData.connected || false
+        garmin: garminData.connected || false,
+        fitbit: fitbitData.connected || false
       })
     } catch (error) {
       console.log('Connection check failed:', error)
@@ -110,6 +116,7 @@ export default function HealthDashboard() {
           <div className="flex justify-center gap-6 mb-8">
             <Image src="/logos/whoop.svg" alt="Whoop Logo" width={100} height={30} />
             <Image src="/logos/oura.webp" alt="Oura Logo" width={100} height={30} />
+            <Image src="/logos/fitbit.png" alt="Oura Logo" width={400} height={30} />
           </div>
   
           <Button onClick={() => setShowAuthDialog(true)} size="lg">
@@ -131,6 +138,7 @@ export default function HealthDashboard() {
 
   return (
     <div className="min-h-screen w-full">
+      <FeedbackButton />
       <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -191,10 +199,11 @@ export default function HealthDashboard() {
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
                   </div>
                   <RecoveryDashboard />
                 </div>
@@ -202,10 +211,11 @@ export default function HealthDashboard() {
 
               <TabsContent value="sleep" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
                   </div>
                   <SleepAnalysis />
                 </div>
@@ -213,10 +223,11 @@ export default function HealthDashboard() {
 
               <TabsContent value="workouts" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} />
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
                   </div>
                   <WorkoutAnalysis />
                 </div>

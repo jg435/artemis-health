@@ -113,7 +113,7 @@ export function TrainerClientSwitcher() {
                 </div>
                 <Select 
                   value={selectedWearable || ""} 
-                  onValueChange={(value: 'whoop' | 'oura' | 'garmin') => selectWearable(value)}
+                  onValueChange={(value: 'whoop' | 'oura' | 'garmin' | 'fitbit') => selectWearable(value)}
                 >
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Choose wearable" />
@@ -135,6 +135,12 @@ export function TrainerClientSwitcher() {
                       <div className="flex items-center space-x-2">
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                         <span>Garmin</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="fitbit">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
+                        <span>Fitbit</span>
                       </div>
                     </SelectItem>
                   </SelectContent>

@@ -16,13 +16,13 @@ interface AuthContextType {
   isLoading: boolean
   currentClient: User | null
   isViewingAsTrainer: boolean
-  selectedWearable: 'whoop' | 'oura' | 'garmin' | null
+  selectedWearable: 'whoop' | 'oura' | 'garmin' | 'fitbit' | null
   login: (user: User) => void
   logout: () => void
   updateUser: (updates: Partial<User>) => void
   switchToClient: (client: User) => void
   switchBackToTrainer: () => void
-  selectWearable: (wearable: 'whoop' | 'oura' | 'garmin' | null) => void
+  selectWearable: (wearable: 'whoop' | 'oura' | 'garmin' | 'fitbit' | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [currentClient, setCurrentClient] = useState<User | null>(null)
   const [isViewingAsTrainer, setIsViewingAsTrainer] = useState(false)
-  const [selectedWearable, setSelectedWearable] = useState<'whoop' | 'oura' | 'garmin' | null>(null)
+  const [selectedWearable, setSelectedWearable] = useState<'whoop' | 'oura' | 'garmin' | 'fitbit' | null>(null)
 
   // Check if user is authenticated on mount
   useEffect(() => {
