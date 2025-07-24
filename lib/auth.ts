@@ -7,6 +7,7 @@ export interface User {
   name: string
   created_at: string
   whoop_connected: boolean
+  user_type: 'client' | 'trainer'
   isDemo?: boolean
 }
 
@@ -14,6 +15,7 @@ export interface CreateUserData {
   email: string
   password: string
   name: string
+  userType?: 'client' | 'trainer'
 }
 
 export interface LoginData {
@@ -28,7 +30,7 @@ export class AuthService {
     return user;
   }
   // Create a new user account
-  static async createUser({ email, password, name }: CreateUserData): Promise<{ user: User | null; error: string | null }> {
+  static async createUser({ email, password, name, userType = 'client' }: CreateUserData): Promise<{ user: User | null; error: string | null }> {
     try {
       if (!supabaseAdmin) {
         return { user: null, error: 'Database not configured' }
@@ -55,9 +57,10 @@ export class AuthService {
           email,
           password_hash: hashedPassword,
           name,
+          user_type: userType,
           whoop_connected: false
         })
-        .select('id, email, name, created_at, whoop_connected')
+        .select('id, email, name, created_at, whoop_connected, user_type')
         .single()
 
       if (error) {
@@ -82,7 +85,7 @@ export class AuthService {
       // Get user with password hash
       const { data: userData, error } = await supabaseAdmin
         .from('users')
-        .select('id, email, name, created_at, whoop_connected, password_hash')
+        .select('id, email, name, created_at, whoop_connected, user_type, password_hash')
         .eq('email', email)
         .single()
 
@@ -114,7 +117,7 @@ export class AuthService {
 
       const { data: user, error } = await supabaseAdmin
         .from('users')
-        .select('id, email, name, created_at, whoop_connected')
+        .select('id, email, name, created_at, whoop_connected, user_type')
         .eq('id', userId)
         .single()
 

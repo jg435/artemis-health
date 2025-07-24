@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useEffectiveUser } from "@/context/auth-context"
 
 interface FoodEntry {
   id: string
@@ -43,10 +43,12 @@ interface FoodEntry {
 
 interface FoodLoggerProps {
   onFoodLogged?: () => void
+  disabled?: boolean
 }
 
-export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
+export function FoodLogger({ onFoodLogged, disabled = false }: FoodLoggerProps = {}) {
   const { user } = useAuth()
+  const effectiveUser = useEffectiveUser()
   const [isOpen, setIsOpen] = useState(false)
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [currentEntry, setCurrentEntry] = useState<Partial<FoodEntry>>({
@@ -66,22 +68,24 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
 
   // Load existing food entries when component mounts
   useEffect(() => {
-    loadFoodEntries()
-  }, [])
+    if (effectiveUser) {
+      loadFoodEntries()
+    }
+  }, [effectiveUser])
 
   const loadFoodEntries = async () => {
     try {
       setIsLoading(true)
       
       // Don't load real data in demo mode
-      if (user?.isDemo) {
+      if (effectiveUser?.isDemo) {
         setFoodEntries([])
         setIsLoading(false)
         return
       }
       
       const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-      const response = await fetch(`/api/food-logs?date=${today}`)
+      const response = await fetch(`/api/food-logs?date=${today}&userId=${effectiveUser?.id}`)
       
       if (response.ok) {
         const data = await response.json()
@@ -151,6 +155,12 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       return
     }
 
+    // Prevent AI analysis when viewing as trainer
+    if (disabled) {
+      alert("AI food analysis functionality is disabled in trainer view mode.")
+      return
+    }
+
     // Prevent AI analysis in demo mode
     if (user?.isDemo) {
       alert("AI food analysis is not available in demo mode. Please create an account to use photo analysis and advanced nutrition tracking.")
@@ -199,6 +209,12 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       return
     }
 
+    // Prevent food logging when viewing as trainer
+    if (disabled) {
+      alert("Food logging functionality is disabled in trainer view mode.")
+      return
+    }
+
     // In demo mode, prevent food logging and ask to create account
     if (user?.isDemo) {
       alert("Food logging is not available in demo mode. Please create an account to log your meals and track your nutrition.")
@@ -231,7 +247,7 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
     // Add user_id for the API request
     const entryWithUserId = {
       ...newEntry,
-      user_id: user?.id, // Use actual authenticated user ID
+      user_id: effectiveUser?.id, // Use effective user ID (for trainer view support)
       photoUrl: photo // API expects photoUrl not photo
     }
 
@@ -295,9 +311,9 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
       {/* Add Food Button */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button className="w-full" size="lg" disabled={user?.isDemo}>
+          <Button className="w-full" size="lg" disabled={user?.isDemo || disabled}>
             <Utensils className="w-5 h-5 mr-2" />
-            {user?.isDemo ? "Demo Mode - Create account to log food" : "Log Food"}
+            {disabled ? "Trainer View - Food logging disabled" : user?.isDemo ? "Demo Mode - Create account to log food" : "Log Food"}
           </Button>
         </DialogTrigger>
 
@@ -563,7 +579,7 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
               
               <Button
                 onClick={analyzeFood}
-                disabled={isAnalyzing || (!currentEntry.foodName && !photo)}
+                disabled={isAnalyzing || (!currentEntry.foodName && !photo) || disabled}
                 className="w-full bg-transparent"
                 variant="outline"
                 size="sm"
@@ -572,6 +588,11 @@ export function FoodLogger({ onFoodLogged }: FoodLoggerProps = {}) {
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
                     Analyzing...
+                  </>
+                ) : disabled ? (
+                  <>
+                    <Zap className="w-4 h-4 mr-2" />
+                    Trainer View - AI Analysis disabled
                   </>
                 ) : (
                   <>

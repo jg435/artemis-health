@@ -20,7 +20,7 @@ import {
 import { Apple, Zap, Target, TrendingUp, Clock, Utensils } from "lucide-react"
 import { FoodLogger } from "./food-logger"
 import { RecentFoodAnalyses } from "./recent-food-analyses"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useEffectiveUser } from "@/context/auth-context"
 
 interface NutritionData {
   totalCalories: number
@@ -51,7 +51,8 @@ interface NutritionData {
 }
 
 export function NutritionDashboard() {
-  const { user } = useAuth()
+  const { user, isViewingAsTrainer } = useAuth()
+  const effectiveUser = useEffectiveUser()
   const [sessionFoodLogs, setSessionFoodLogs] = useState<any[]>([])
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     totalCalories: 1800,
@@ -81,12 +82,14 @@ export function NutritionDashboard() {
 
   // Load and calculate nutrition data from food logs
   useEffect(() => {
-    loadNutritionData()
+    if (effectiveUser) {
+      loadNutritionData()
+    }
     
     // Listen for demo food entries
     const handleDemoFoodAdded = (event: CustomEvent) => {
       try {
-        if (user?.isDemo && event.detail) {
+        if (effectiveUser?.isDemo && event.detail) {
           const newEntry = event.detail
           // Convert to expected format
           const foodLog = {
@@ -113,14 +116,14 @@ export function NutritionDashboard() {
     return () => {
       window.removeEventListener('demoFoodAdded', handleDemoFoodAdded as EventListener)
     }
-  }, [user?.isDemo, user?.id])
+  }, [effectiveUser?.isDemo, effectiveUser?.id])
 
   const loadNutritionData = async () => {
     try {
       setIsLoading(true)
       
-      // Use demo data if user is in demo mode
-      if (user?.isDemo && user?.id) {
+      // Use demo data if effectiveUser is in demo mode
+      if (effectiveUser?.isDemo && effectiveUser?.id) {
         const response = await fetch('/api/demo/nutrition')
         if (response.ok) {
           const data = await response.json()
@@ -129,7 +132,7 @@ export function NutritionDashboard() {
         }
       } else {
         const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-        const response = await fetch(`/api/food-logs?date=${today}`)
+        const response = await fetch(`/api/food-logs?date=${today}&userId=${effectiveUser?.id}`)
         
         if (response.ok) {
           const data = await response.json()
@@ -146,7 +149,7 @@ export function NutritionDashboard() {
 
   const calculateNutritionFromLogs = (foodLogs: any[]) => {
     // For demo mode, use hardcoded today's values instead of calculating from logs
-    if (user?.isDemo) {
+    if (effectiveUser?.isDemo) {
       // Still show meals from today's logs for the meal breakdown
       const today = new Date().toISOString().split('T')[0]
       const todaysLogs = foodLogs.filter(log => {
@@ -260,16 +263,16 @@ export function NutritionDashboard() {
         date.setDate(date.getDate() - i)
         const dateString = date.toISOString().split('T')[0]
         
-        // Use demo data if user is in demo mode
-        const endpoint = user?.isDemo 
+        // Use demo data if effectiveUser is in demo mode
+        const endpoint = effectiveUser?.isDemo 
           ? `/api/demo/nutrition?date=${dateString}`
-          : `/api/food-logs?date=${dateString}`
+          : `/api/food-logs?date=${dateString}&userId=${effectiveUser?.id}`
         const response = await fetch(endpoint)
         let dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 }
         
         if (response.ok) {
           const data = await response.json()
-          const foodLogs = user?.isDemo ? (data.meals || []) : (data.foodLogs || [])
+          const foodLogs = effectiveUser?.isDemo ? (data.meals || []) : (data.foodLogs || [])
           
           dayTotals = foodLogs.reduce((acc: any, log: any) => ({
             calories: acc.calories + (log.calories || 0),
@@ -345,7 +348,7 @@ export function NutritionDashboard() {
       <div className="space-y-6">
         {/* Food Logging */}
         <div className="max-w-md mx-auto">
-          <FoodLogger />
+          <FoodLogger disabled={isViewingAsTrainer} />
         </div>
 
         {/* Loading State */}
@@ -361,7 +364,7 @@ export function NutritionDashboard() {
     <div className="space-y-6">
       {/* Food Logging */}
       <div className="max-w-md mx-auto">
-        <FoodLogger onFoodLogged={loadNutritionData} />
+        <FoodLogger onFoodLogged={loadNutritionData} disabled={isViewingAsTrainer} />
       </div>
 
       {/* Recent Analyses */}

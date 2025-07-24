@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        whoop_connected: user.whoop_connected
+        whoop_connected: user.whoop_connected,
+        user_type: user.user_type
       }
     })
 

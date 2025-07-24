@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Loader2, User, Mail, Lock, Eye } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, User, Mail, Lock, Eye, Users } from 'lucide-react'
 
 interface AuthDialogProps {
   open: boolean
@@ -31,7 +32,8 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    userType: 'client' as 'client' | 'trainer'
   })
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -111,6 +113,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
       email: `demo-${Date.now()}@healthapp.com`,
       name: 'Demo User',
       whoop_connected: true,
+      user_type: 'client' as const,
       isDemo: true
     }
 
@@ -248,6 +251,39 @@ export function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialogProps) {
                     minLength={6}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="user-type">Account Type</Label>
+                <Select 
+                  value={registerData.userType} 
+                  onValueChange={(value: 'client' | 'trainer') => setRegisterData(prev => ({ ...prev, userType: value }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <Users className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Select account type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="client">
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4" />
+                        <div>
+                          <div className="font-medium">Client</div>
+                          <div className="text-xs text-muted-foreground">Track your personal health data</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="trainer">
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-4 w-4" />
+                        <div>
+                          <div className="font-medium">Trainer</div>
+                          <div className="text-xs text-muted-foreground">View client data with permission</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>

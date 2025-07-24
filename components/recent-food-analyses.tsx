@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useEffectiveUser } from "@/context/auth-context"
 
 interface FoodEntry {
   id: string
@@ -28,18 +28,21 @@ interface FoodEntry {
 
 export function RecentFoodAnalyses() {
   const { user } = useAuth()
+  const effectiveUser = useEffectiveUser()
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEntry, setSelectedEntry] = useState<FoodEntry | null>(null)
   const [demoEntries, setDemoEntries] = useState<FoodEntry[]>([])
 
   useEffect(() => {
-    fetchFoodEntries()
+    if (effectiveUser) {
+      fetchFoodEntries()
+    }
     
     // Listen for demo food entries
     const handleDemoFoodAdded = (event: CustomEvent) => {
       try {
-        if (user?.isDemo && event.detail) {
+        if (effectiveUser?.isDemo && event.detail) {
           const newEntry = event.detail
           setDemoEntries(prev => [newEntry, ...prev])
           setFoodEntries(prev => [newEntry, ...prev])
@@ -54,18 +57,18 @@ export function RecentFoodAnalyses() {
     return () => {
       window.removeEventListener('demoFoodAdded', handleDemoFoodAdded as EventListener)
     }
-  }, [user?.isDemo, user?.id])
+  }, [effectiveUser?.isDemo, effectiveUser?.id])
 
   const fetchFoodEntries = async () => {
     try {
       // In demo mode, show demo entries that were logged during session
-      if (user?.isDemo) {
+      if (effectiveUser?.isDemo) {
         setFoodEntries(demoEntries)
         setLoading(false)
         return
       }
       
-      const response = await fetch("/api/food-entries?limit=10")
+      const response = await fetch(`/api/food-entries?limit=10&userId=${effectiveUser?.id}`)
       const data = await response.json()
       setFoodEntries(data.foodEntries || [])
     } catch (error) {

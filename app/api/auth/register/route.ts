@@ -3,12 +3,21 @@ import { AuthService } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name } = await request.json()
+    const { email, password, name, userType } = await request.json()
 
     // Basic validation
     if (!email || !password || !name) {
       return NextResponse.json(
         { error: 'Email, password, and name are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate userType
+    const validUserTypes = ['client', 'trainer']
+    if (userType && !validUserTypes.includes(userType)) {
+      return NextResponse.json(
+        { error: 'Invalid user type' },
         { status: 400 }
       )
     }
@@ -29,7 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user
-    const { user, error } = await AuthService.createUser({ email, password, name })
+    const { user, error } = await AuthService.createUser({ 
+      email, 
+      password, 
+      name, 
+      userType: userType || 'client' 
+    })
 
     if (error) {
       return NextResponse.json(
@@ -52,7 +66,8 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        whoop_connected: user.whoop_connected
+        whoop_connected: user.whoop_connected,
+        user_type: user.user_type
       }
     })
 

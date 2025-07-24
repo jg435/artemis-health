@@ -6,22 +6,26 @@ import { Badge } from "@/components/ui/badge"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { Activity, Flame, Clock, MapPin, Zap } from "lucide-react"
 import { WearableService, type UnifiedActivityData, type WearableType } from "@/lib/wearable-service"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useApiHeaders, useEffectiveUser } from "@/context/auth-context"
 
 export function WorkoutAnalysis() {
-  const { user } = useAuth()
+  const { user, selectedWearable } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [activityData, setActivityData] = useState<UnifiedActivityData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
   const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (effectiveUser) {
+      fetchData()
+    }
+  }, [effectiveUser, selectedWearable])
 
   const fetchData = async () => {
     try {
-      if (user?.isDemo) {
+      if (effectiveUser?.isDemo) {
         // Use demo data if user is in demo mode - keeping Whoop structure for demo
         const endpoint = '/api/demo/whoop/workouts'
         const response = await fetch(endpoint)
@@ -48,36 +52,85 @@ export function WorkoutAnalysis() {
           setIsConnected(false)
         }
       } else {
-        // Use unified wearable service for real users
-        const wearable = await WearableService.getConnectedWearable()
-        setConnectedWearable(wearable)
-        
-        if (wearable) {
-          // For Oura, get both activity and recovery data to combine heart rate info
-          const [activityData, recoveryData] = await Promise.all([
-            WearableService.getActivityData(),
-            wearable === 'oura' ? WearableService.getRecoveryData() : Promise.resolve([])
-          ])
-          
-          // If Oura, merge heart rate data from recovery into activity data
-          if (wearable === 'oura' && recoveryData.length > 0) {
-            const enrichedActivityData = activityData.map(activity => {
-              const matchingRecovery = recoveryData.find(recovery => recovery.date === activity.date)
-              return {
-                ...activity,
-                averageHeartRate: matchingRecovery?.metrics?.heartRate || activity.averageHeartRate,
-                maxHeartRate: undefined // Don't show max HR for Oura
+        // Get data from selected wearable or try all if none selected
+        const activityDataFromApis: UnifiedActivityData[] = []
+        let hasConnection = false
+
+        // If specific wearable selected, only fetch from that
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+
+        for (const wearable of wearablesToTry) {
+          if (wearable === 'whoop') {
+            try {
+              const whoopResponse = await fetch('/api/whoop/workouts?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (whoopResponse.ok) {
+                const whoopData = await whoopResponse.json()
+                const whoopRecords = whoopData.records || []
+                
+                if (whoopRecords.length > 0) {
+                  const whoopActivityData: UnifiedActivityData[] = whoopRecords.map((record: any) => ({
+                    source: 'whoop' as const,
+                    date: record.start ? record.start.split('T')[0] : new Date().toISOString().split('T')[0],
+                    strain: record.score?.strain || 0,
+                    calories: Math.round((record.score?.kilojoule || 0) / 4.184), // Convert kJ to calories
+                    distance: record.score?.distance_meter,
+                    averageHeartRate: record.score?.average_heart_rate,
+                    maxHeartRate: record.score?.max_heart_rate,
+                    sportName: record.sport_name
+                  }))
+                  
+                  activityDataFromApis.push(...whoopActivityData)
+                  setConnectedWearable('whoop')
+                  hasConnection = true
+                }
               }
-            })
-            setActivityData(enrichedActivityData)
-          } else {
-            setActivityData(activityData)
+            } catch (error) {
+              console.log("Whoop workouts not available:", error)
+            }
           }
-          
-          setIsConnected(activityData.length > 0)
-        } else {
-          setIsConnected(false)
+
+          if (wearable === 'oura') {
+            try {
+              const ouraResponse = await fetch('/api/oura/activity?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (ouraResponse.ok) {
+                const ouraData = await ouraResponse.json()
+                const ouraRecords = ouraData.data || []
+                
+                if (ouraRecords.length > 0) {
+                  const ouraActivityData: UnifiedActivityData[] = ouraRecords.map((record: any) => ({
+                    source: 'oura' as const,
+                    date: record.day || new Date().toISOString().split('T')[0],
+                    calories: record.active_calories || 0,
+                    steps: record.steps,
+                    distance: record.meters_to_target, // Oura uses different distance metric
+                    averageHeartRate: record.average_met_minutes, // Approximate mapping
+                    sportName: 'Daily Activity'
+                  }))
+                  
+                  activityDataFromApis.push(...ouraActivityData)
+                  if (!hasConnection) {
+                    setConnectedWearable('oura')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Oura activity not available:", error)
+            }
+          }
         }
+
+        // Sort by date (most recent first)
+        activityDataFromApis.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setActivityData(activityDataFromApis)
+        setIsConnected(hasConnection && activityDataFromApis.length > 0)
       }
     } catch (error) {
       console.log("Activity data not available:", error)

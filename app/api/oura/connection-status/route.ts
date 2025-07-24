@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { ouraAuthService } from '@/lib/oura-auth';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,8 +24,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user has Oura connected
-    const connectionInfo = await ouraAuthService.getConnectionInfo(user.id);
+    // Determine effective user ID (client if trainer is viewing, otherwise authenticated user)
+    const viewingClientId = request.headers.get('x-viewing-client-id')
+    let effectiveUserId = user.id
+
+    if (user.user_type === 'trainer' && viewingClientId) {
+      // Verify trainer has permission to view this client
+      const { data: relationship } = await supabase
+        .from('trainer_clients')
+        .select('id')
+        .eq('trainer_id', user.id)
+        .eq('client_id', viewingClientId)
+        .eq('is_active', true)
+        .single()
+
+      if (relationship) {
+        effectiveUserId = viewingClientId
+      } else {
+        return NextResponse.json(
+          { error: 'No permission to view this client\'s data' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Check if effective user has Oura connected
+    const connectionInfo = await ouraAuthService.getConnectionInfo(effectiveUserId);
     
     return NextResponse.json(connectionInfo);
   } catch (error) {

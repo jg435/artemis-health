@@ -7,22 +7,26 @@ import { Progress } from "@/components/ui/progress"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Heart, Activity, TrendingUp, Zap } from "lucide-react"
 import { WearableService, type UnifiedRecoveryData, type WearableType } from "@/lib/wearable-service"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useApiHeaders, useEffectiveUser } from "@/context/auth-context"
 
 export function RecoveryDashboard() {
-  const { user } = useAuth()
+  const { user, selectedWearable } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [recoveryData, setRecoveryData] = useState<UnifiedRecoveryData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
   const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (effectiveUser) {
+      fetchData()
+    }
+  }, [effectiveUser, selectedWearable])
 
   const fetchData = async () => {
     try {
-      if (user?.isDemo) {
+      if (effectiveUser?.isDemo) {
         // Use demo data if user is in demo mode - keeping Whoop structure for demo
         const endpoint = '/api/demo/whoop/recovery'
         const response = await fetch(endpoint)
@@ -51,17 +55,87 @@ export function RecoveryDashboard() {
           setIsConnected(false)
         }
       } else {
-        // Use unified wearable service for real users
-        const wearable = await WearableService.getConnectedWearable()
-        setConnectedWearable(wearable)
-        
-        if (wearable) {
-          const data = await WearableService.getRecoveryData()
-          setRecoveryData(data)
-          setIsConnected(data.length > 0)
-        } else {
-          setIsConnected(false)
+        // Get data from selected wearable or try all if none selected
+        const recoveryDataFromApis: UnifiedRecoveryData[] = []
+        let hasConnection = false
+
+        // If specific wearable selected, only fetch from that
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+
+        for (const wearable of wearablesToTry) {
+          if (wearable === 'whoop') {
+            try {
+              const whoopResponse = await fetch('/api/whoop/recovery?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (whoopResponse.ok) {
+                const whoopData = await whoopResponse.json()
+                const whoopRecords = whoopData.records || []
+                
+                if (whoopRecords.length > 0) {
+                  const whoopRecoveryData: UnifiedRecoveryData[] = whoopRecords.map((record: any) => ({
+                    source: 'whoop' as const,
+                    score: record.score?.recovery_score || 0,
+                    date: record.created_at ? record.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                    metrics: {
+                      heartRate: record.score?.resting_heart_rate,
+                      hrv: record.score?.hrv_rmssd_milli,
+                      temperature: record.score?.skin_temp_celsius,
+                      oxygenSaturation: record.score?.spo2_percentage,
+                    }
+                  }))
+                  
+                  recoveryDataFromApis.push(...whoopRecoveryData)
+                  setConnectedWearable('whoop')
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Whoop recovery not available:", error)
+            }
+          }
+
+          if (wearable === 'oura') {
+            try {
+              const ouraResponse = await fetch('/api/oura/readiness?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (ouraResponse.ok) {
+                const ouraData = await ouraResponse.json()
+                const ouraRecords = ouraData.data || []
+                
+                if (ouraRecords.length > 0) {
+                  const ouraRecoveryData: UnifiedRecoveryData[] = ouraRecords.map((record: any) => ({
+                    source: 'oura' as const,
+                    score: record.score || 0,
+                    date: record.day || new Date().toISOString().split('T')[0],
+                    metrics: {
+                      heartRate: record.contributors?.resting_heart_rate,
+                      hrv: record.contributors?.hrv,
+                      temperature: record.contributors?.body_temperature,
+                    }
+                  }))
+                  
+                  recoveryDataFromApis.push(...ouraRecoveryData)
+                  if (!hasConnection) {
+                    setConnectedWearable('oura')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Oura readiness not available:", error)
+            }
+          }
         }
+
+        // Sort by date (most recent first)
+        recoveryDataFromApis.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setRecoveryData(recoveryDataFromApis)
+        setIsConnected(hasConnection && recoveryDataFromApis.length > 0)
       }
     } catch (error) {
       console.log("Recovery data not available:", error)

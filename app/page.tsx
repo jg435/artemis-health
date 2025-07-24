@@ -1,12 +1,12 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useApiHeaders, useEffectiveUser } from "@/context/auth-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Heart, CheckCircle2, AlertCircle, X, User, LogOut } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Heart, CheckCircle2, AlertCircle, X, User, LogOut, Shield } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { RecoveryDashboard } from "@/components/recovery-dashboard"
 import { SleepAnalysis } from "@/components/sleep-analysis"
 import { WorkoutAnalysis } from "@/components/workout-analysis"
@@ -18,12 +18,17 @@ import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
 import { GarminConnect } from "@/components/garmin-connect"
 import { AuthDialog } from "@/components/auth-dialog"
+import { TrainerClientSwitcher } from "@/components/trainer-client-switcher"
+import { ClientTrainerManagement } from "@/components/client-trainer-management"
 import Image from 'next/image'
 
 export default function HealthDashboard() {
   const { user, isLoading, login, logout } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [activeTab, setActiveTab] = useState("recovery")
   const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const [showTrainerManagement, setShowTrainerManagement] = useState(false)
   const [connectionStates, setConnectionStates] = useState({
     whoop: false,
     oura: false,
@@ -33,9 +38,9 @@ export default function HealthDashboard() {
   const checkAllConnections = async () => {
     try {
       const [whoopResponse, ouraResponse, garminResponse] = await Promise.all([
-        fetch('/api/whoop/connection-status'),
-        fetch('/api/oura/connection-status'),
-        fetch('/api/garmin/connection-status')
+        fetch('/api/whoop/connection-status', { headers: apiHeaders }),
+        fetch('/api/oura/connection-status', { headers: apiHeaders }),
+        fetch('/api/garmin/connection-status', { headers: apiHeaders })
       ])
       
       const whoopData = await whoopResponse.json()
@@ -53,10 +58,10 @@ export default function HealthDashboard() {
   }
 
   useEffect(() => {
-    if (user && !user.isDemo) {
+    if (effectiveUser && !effectiveUser.isDemo) {
       checkAllConnections()
     }
-  }, [user])
+  }, [effectiveUser])
 
   // Check for OAuth success/failure parameters and refresh connections
   useEffect(() => {
@@ -149,7 +154,16 @@ export default function HealthDashboard() {
                       {user.name}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-56">
+                    {user.user_type === 'client' && (
+                      <>
+                        <DropdownMenuItem onClick={() => setShowTrainerManagement(!showTrainerManagement)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Trainer Access
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem onClick={logout} className="text-red-600">
                       <LogOut className="h-4 w-4 mr-2" />
                       Sign Out
@@ -160,6 +174,10 @@ export default function HealthDashboard() {
             </div>
 
 
+            {/* Trainer/Client Management */}
+            <TrainerClientSwitcher />
+            {user.user_type === 'client' && showTrainerManagement && <ClientTrainerManagement />}
+
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto gap-1 p-2">
@@ -167,7 +185,7 @@ export default function HealthDashboard() {
                 <TabsTrigger value="sleep" className="h-10">Sleep</TabsTrigger>
                 <TabsTrigger value="workouts" className="h-10">Workouts</TabsTrigger>
                 <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger> {/* ← CLICK HERE */}
-                <TabsTrigger value="medical" className="h-10">Medical</TabsTrigger>
+                <TabsTrigger value="lab results" className="h-10">Lab Results</TabsTrigger>
                 <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
               </TabsList>
 
@@ -209,7 +227,7 @@ export default function HealthDashboard() {
                 <NutritionDashboard />
               </TabsContent>
 
-              <TabsContent value="medical" className="space-y-4">
+              <TabsContent value="lab results" className="space-y-4">
                 <MedicalLabResults />
               </TabsContent>
 

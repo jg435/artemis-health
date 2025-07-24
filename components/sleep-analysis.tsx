@@ -6,26 +6,28 @@ import { Progress } from "@/components/ui/progress"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { Moon, Clock, TrendingUp, Zap } from "lucide-react"
 import { WearableService, type UnifiedSleepData, type WearableType } from "@/lib/wearable-service"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useApiHeaders, useEffectiveUser } from "@/context/auth-context"
 
 export function SleepAnalysis() {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, selectedWearable } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [sleepData, setSleepData] = useState<UnifiedSleepData[]>([])
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(false)
   const [connectedWearable, setConnectedWearable] = useState<WearableType>(null)
 
   useEffect(() => {
-    if (!authLoading && user !== null) {
+    if (!authLoading && effectiveUser !== null) {
       fetchData()
-    } else if (!authLoading && user === null) {
+    } else if (!authLoading && effectiveUser === null) {
       setLoading(false)
     }
-  }, [user, authLoading])
+  }, [effectiveUser, authLoading, selectedWearable])
 
   const fetchData = async () => {
     try {
-      if (user?.isDemo) {
+      if (effectiveUser?.isDemo) {
         // Use demo data if user is in demo mode - keeping Whoop structure for demo
         const endpoint = '/api/demo/whoop/sleep'
         const response = await fetch(endpoint)
@@ -57,17 +59,94 @@ export function SleepAnalysis() {
           setIsConnected(false)
         }
       } else {
-        // Use unified wearable service for real users
-        const wearable = await WearableService.getConnectedWearable()
-        setConnectedWearable(wearable)
-        
-        if (wearable) {
-          const data = await WearableService.getSleepData()
-          setSleepData(data)
-          setIsConnected(data.length > 0)
-        } else {
-          setIsConnected(false)
+        // Get data from selected wearable or try all if none selected
+        const sleepDataFromApis: UnifiedSleepData[] = []
+        let hasConnection = false
+
+        // If specific wearable selected, only fetch from that
+        const wearablesToTry = selectedWearable ? [selectedWearable] : ['whoop', 'oura']
+
+        for (const wearable of wearablesToTry) {
+          if (wearable === 'whoop') {
+            try {
+              const whoopResponse = await fetch('/api/whoop/sleep?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (whoopResponse.ok) {
+                const whoopData = await whoopResponse.json()
+                const whoopRecords = whoopData.records || []
+                
+                if (whoopRecords.length > 0) {
+                  const whoopSleepData: UnifiedSleepData[] = whoopRecords.map((record: any) => ({
+                    source: 'whoop' as const,
+                    date: record.start ? record.start.split('T')[0] : new Date().toISOString().split('T')[0],
+                    score: record.score?.sleep_performance_percentage || 0,
+                    duration: Math.round((record.score?.stage_summary?.total_in_bed_time_milli || 0) / (1000 * 60)),
+                    efficiency: record.score?.sleep_efficiency_percentage || 0,
+                    stages: {
+                      deep: Math.round((record.score?.stage_summary?.total_slow_wave_sleep_time_milli || 0) / (1000 * 60)),
+                      light: Math.round((record.score?.stage_summary?.total_light_sleep_time_milli || 0) / (1000 * 60)),
+                      rem: Math.round((record.score?.stage_summary?.total_rem_sleep_time_milli || 0) / (1000 * 60)),
+                      awake: Math.round((record.score?.stage_summary?.total_awake_time_milli || 0) / (1000 * 60)),
+                    },
+                    respiratoryRate: record.score?.respiratory_rate
+                  }))
+                  
+                  sleepDataFromApis.push(...whoopSleepData)
+                  setConnectedWearable('whoop')
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Whoop sleep not available:", error)
+            }
+          }
+
+          if (wearable === 'oura') {
+            try {
+              const ouraResponse = await fetch('/api/oura/sleep?days=30', {
+                headers: apiHeaders
+              })
+              
+              if (ouraResponse.ok) {
+                const ouraData = await ouraResponse.json()
+                const ouraRecords = ouraData.data || []
+                
+                if (ouraRecords.length > 0) {
+                  const ouraSleepData: UnifiedSleepData[] = ouraRecords.map((record: any) => ({
+                    source: 'oura' as const,
+                    date: record.day || new Date().toISOString().split('T')[0],
+                    score: record.score || 0,
+                    duration: Math.round((record.total_sleep_duration || 0) / 60),
+                    efficiency: record.efficiency || 0,
+                    stages: {
+                      deep: Math.round((record.deep_sleep_duration || 0) / 60),
+                      light: Math.round((record.light_sleep_duration || 0) / 60),
+                      rem: Math.round((record.rem_sleep_duration || 0) / 60),
+                      awake: Math.round((record.awake_time || 0) / 60),
+                    },
+                    respiratoryRate: record.respiratory_rate
+                  }))
+                  
+                  sleepDataFromApis.push(...ouraSleepData)
+                  if (!hasConnection) {
+                    setConnectedWearable('oura')
+                  }
+                  hasConnection = true
+                }
+              }
+            } catch (error) {
+              console.log("Oura sleep not available:", error)
+            }
+          }
         }
+
+        // Sort by date (most recent first)
+        sleepDataFromApis.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setSleepData(sleepDataFromApis)
+        setIsConnected(hasConnection && sleepDataFromApis.length > 0)
       }
     } catch (error) {
       console.log("Sleep data not available:", error)

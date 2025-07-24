@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
           email: `demo-${Date.now()}@healthapp.com`,
           name: 'Demo User',
           whoop_connected: true,
+          user_type: 'client',
           isDemo: true
         }
       })
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
         email: user.email,
         name: user.name,
         whoop_connected: user.whoop_connected,
+        user_type: user.user_type,
         isDemo: false
       }
     })

@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Stethoscope, AlertTriangle, CheckCircle, TrendingUp, Upload, Camera, Loader2 } from "lucide-react"
 import { getMedicalLabResults } from "@/lib/database"
-import { useAuth } from "@/context/auth-context"
+import { useAuth, useEffectiveUser } from "@/context/auth-context"
 
 interface LabResult {
   "Test Name": string
@@ -18,7 +18,8 @@ interface LabResult {
 }
 
 export function MedicalLabResults() {
-  const { user } = useAuth()
+  const { user, isViewingAsTrainer } = useAuth()
+  const effectiveUser = useEffectiveUser()
   const [data, setData] = useState<LabResult[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -27,12 +28,14 @@ export function MedicalLabResults() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (effectiveUser) {
+      fetchData()
+    }
+  }, [effectiveUser])
 
   const fetchData = async () => {
     try {
-      const labData = await getMedicalLabResults(user?.id, user)
+      const labData = await getMedicalLabResults(effectiveUser?.id, effectiveUser)
       setData(labData)
     } catch (error) {
       console.error("Error fetching lab results:", error)
@@ -44,6 +47,15 @@ export function MedicalLabResults() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+
+    // Prevent uploads when viewing as trainer
+    if (isViewingAsTrainer) {
+      alert("Upload functionality is disabled in trainer view mode.")
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
 
     // Prevent uploads in demo mode
     if (user?.isDemo) {
@@ -217,7 +229,7 @@ export function MedicalLabResults() {
             <div className="flex gap-2">
               <Button
                 onClick={triggerFileUpload}
-                disabled={uploading || user?.isDemo}
+                disabled={uploading || user?.isDemo || isViewingAsTrainer}
                 className="flex items-center gap-2"
               >
                 {uploading ? (
@@ -225,7 +237,7 @@ export function MedicalLabResults() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {user?.isDemo ? "Demo Mode - Create account to upload results" : uploading ? "Processing..." : "Upload Image"}
+                {isViewingAsTrainer ? "Trainer View - Upload disabled" : user?.isDemo ? "Demo Mode - Create account to upload results" : uploading ? "Processing..." : "Upload Image"}
               </Button>
             </div>
             
@@ -235,7 +247,7 @@ export function MedicalLabResults() {
               accept="image/*"
               onChange={handleFileUpload}
               className="hidden"
-              disabled={user?.isDemo}
+              disabled={user?.isDemo || isViewingAsTrainer}
             />
 
             {uploadSuccess && (
@@ -322,25 +334,23 @@ export function MedicalLabResults() {
           ) : (
             <div className="space-y-4">
               {data.map((result, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+                <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg space-y-3 sm:space-y-0">
+                  <div className="flex items-center space-x-4 min-w-0 flex-1">
+                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full flex-shrink-0">
                       {getFlagIcon(result.Flag)}
                     </div>
-                    <div>
-                      <p className="font-medium">{result["Test Name"]}</p>
-                      <p className="text-sm text-muted-foreground">Reference: {result["Reference Range"]}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{result["Test Name"]}</p>
+                      <p className="text-sm text-muted-foreground truncate">Reference: {result["Reference Range"]}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <p className="text-lg font-semibold">
-                          {result.Result} {result.Unit}
-                        </p>
-                      </div>
-                      {result.Flag && <Badge variant={getFlagColor(result.Flag)}>{result.Flag.toUpperCase()}</Badge>}
+                  <div className="flex items-center justify-between sm:justify-end space-x-3 sm:space-x-4 flex-shrink-0">
+                    <div className="text-right">
+                      <p className="text-lg font-semibold whitespace-nowrap">
+                        {result.Result} {result.Unit}
+                      </p>
                     </div>
+                    {result.Flag && <Badge variant={getFlagColor(result.Flag)} className="whitespace-nowrap">{result.Flag.toUpperCase()}</Badge>}
                   </div>
                 </div>
               ))}
