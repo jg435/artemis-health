@@ -153,7 +153,7 @@ export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <Badge variant="outline" className="text-green-700 border-green-300">
@@ -166,6 +166,7 @@ export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected
                 size="sm" 
                 onClick={checkConnectionStatus}
                 disabled={user?.isDemo}
+                className="flex-1"
               >
                 Refresh
               </Button>
@@ -174,6 +175,7 @@ export function WhoopConnect({ onConnect, ouraConnected = false, garminConnected
                 size="sm" 
                 onClick={handleDisconnect}
                 disabled={user?.isDemo}
+                className="flex-1"
               >
                 Disconnect
               </Button>
