@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const isLocal = process.env.NODE_ENV === 'development';
     const redirectUri = isLocal 
       ? 'http://localhost:3000/api/auth/whoop/callback'
-      : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/whoop/callback';
+      : 'https://artemis-health.vercel.app/api/auth/whoop/callback';
 
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {

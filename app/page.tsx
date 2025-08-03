@@ -199,36 +199,42 @@ export default function HealthDashboard() {
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
-                  </div>
+                  {user?.user_type !== 'trainer' && (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                      <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                      <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
+                    </div>
+                  )}
                   <RecoveryDashboard />
                 </div>
               </TabsContent>
 
               <TabsContent value="sleep" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
-                  </div>
+                  {user?.user_type !== 'trainer' && (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                      <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                      <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
+                    </div>
+                  )}
                   <SleepAnalysis />
                 </div>
               </TabsContent>
 
               <TabsContent value="workouts" className="space-y-4">
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
-                    <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
-                    <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
-                  </div>
+                  {user?.user_type !== 'trainer' && (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                      <WhoopConnect onConnect={checkAllConnections} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <OuraConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} garminConnected={connectionStates.garmin} fitbitConnected={connectionStates.fitbit} />
+                      <FitbitConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} garminConnected={connectionStates.garmin} />
+                      <GarminConnect onConnect={checkAllConnections} whoopConnected={connectionStates.whoop} ouraConnected={connectionStates.oura} fitbitConnected={connectionStates.fitbit} />
+                    </div>
+                  )}
                   <WorkoutAnalysis />
                 </div>
               </TabsContent>

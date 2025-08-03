@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const isLocal = process.env.NODE_ENV === 'development';
     const redirectUri = isLocal 
       ? 'http://localhost:3000/api/auth/garmin/callback'
-      : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/garmin/callback';
+      : 'https://artemis-health.vercel.app/api/auth/garmin/callback';
 
     const tokenResponse = await fetch('https://connect.garmin.com/oauth-service/oauth/access_token', {
       method: 'POST',

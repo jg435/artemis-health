@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   const isLocal = process.env.NODE_ENV === 'development';
   const redirectUri = isLocal 
     ? 'http://localhost:3000/api/auth/oura/callback'
-    : 'https://v0-whoop-data-dashboard.vercel.app/api/auth/oura/callback';
+    : 'https://artemis-health.vercel.app/api/auth/oura/callback';
   
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('isLocal:', isLocal);
