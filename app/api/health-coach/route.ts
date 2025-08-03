@@ -1,4 +1,5 @@
-import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase"
+import { supabaseAdmin, isSupabaseConfigured, supabase } from "@/lib/supabase"
+import { AuthService } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
@@ -113,12 +114,36 @@ async function fetchUserHealthData(request: Request) {
   const host = request.headers.get('host');
   const protocol = request.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
   const origin = `${protocol}://${host}`;
+  
+  // Forward trainer context headers if present
+  const forwardHeaders: HeadersInit = {
+    'Content-Type': 'application/json'
+  };
+  
+  const viewingClientId = request.headers.get('x-viewing-client-id');
+  if (viewingClientId) {
+    forwardHeaders['x-viewing-client-id'] = viewingClientId;
+  }
+  
+  const selectedWearable = request.headers.get('x-selected-wearable');
+  if (selectedWearable) {
+    forwardHeaders['x-selected-wearable'] = selectedWearable;
+  }
+  
+  // Forward cookies for authentication
+  const cookies = request.headers.get('cookie');
+  if (cookies) {
+    forwardHeaders['cookie'] = cookies;
+  }
+  
   try {
     const healthData: any = {}
 
     // Fetch Whoop data from API endpoints (same as dashboard)
     try {
-      const recoveryResponse = await fetch(`${origin}/api/whoop/recovery?limit=7`)
+      const recoveryResponse = await fetch(`${origin}/api/whoop/recovery?limit=7`, {
+        headers: forwardHeaders
+      })
       if (recoveryResponse.ok) {
         const recoveryData = await recoveryResponse.json()
         healthData.recovery = recoveryData.records || []
@@ -129,7 +154,9 @@ async function fetchUserHealthData(request: Request) {
     }
 
     try {
-      const sleepResponse = await fetch(`${origin}/api/whoop/sleep?limit=7`)
+      const sleepResponse = await fetch(`${origin}/api/whoop/sleep?limit=7`, {
+        headers: forwardHeaders
+      })
       if (sleepResponse.ok) {
         const sleepData = await sleepResponse.json()
         healthData.sleep = sleepData.records || []
@@ -140,7 +167,9 @@ async function fetchUserHealthData(request: Request) {
     }
 
     try {
-      const workoutResponse = await fetch(`${origin}/api/whoop/workouts?limit=10`)
+      const workoutResponse = await fetch(`${origin}/api/whoop/workouts?limit=10`, {
+        headers: forwardHeaders
+      })
       if (workoutResponse.ok) {
         const workoutData = await workoutResponse.json()
         healthData.workouts = workoutData.records || []
@@ -150,30 +179,62 @@ async function fetchUserHealthData(request: Request) {
       healthData.workouts = []
     }
 
-    // Fetch Supabase data (medical and nutrition)
+    // Fetch Supabase data (medical and nutrition) with proper user context
     if (supabaseAdmin) {
-      // Fetch medical lab results
-      const { data: labResults } = await supabaseAdmin
-        .from("medical_lab_results")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20)
-      healthData.labResults = labResults || []
-
-      // Fetch nutrition data (food logs from last 7 days)
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      // Get authenticated user and handle trainer context
+      const authService = new AuthService();
+      const cookies = request.headers.get('cookie') || '';
+      const userSessionMatch = cookies.match(/user_session=([^;]*)/);
+      const userSession = userSessionMatch ? userSessionMatch[1] : null;
       
-      const { data: foodLogs } = await supabaseAdmin
-        .from("food_logs")
-        .select("*")
-        .gte("logged_at", sevenDaysAgo.toISOString())
-        .order("logged_at", { ascending: false })
-        .limit(50)
+      if (userSession) {
+        const user = await authService.getUser(userSession);
+        if (user) {
+          // Determine effective user ID (client if trainer is viewing, otherwise authenticated user)
+          const viewingClientId = request.headers.get('x-viewing-client-id')
+          let effectiveUserId = user.id
 
-      // Aggregate nutrition data by day
-      healthData.nutrition = aggregateNutritionByDay(foodLogs || [])
-      healthData.foodLogs = foodLogs || []
+          if (user.user_type === 'trainer' && viewingClientId) {
+            // Verify trainer has permission to view this client
+            const { data: relationship } = await supabase
+              .from('trainer_clients')
+              .select('id')
+              .eq('trainer_id', user.id)
+              .eq('client_id', viewingClientId)
+              .eq('is_active', true)
+              .single()
+
+            if (relationship) {
+              effectiveUserId = viewingClientId
+            }
+          }
+
+          // Fetch medical lab results for the effective user
+          const { data: labResults } = await supabaseAdmin
+            .from("medical_lab_results")
+            .select("*")
+            .eq("user_id", effectiveUserId)
+            .order("created_at", { ascending: false })
+            .limit(20)
+          healthData.labResults = labResults || []
+
+          // Fetch nutrition data (food logs from last 7 days) for the effective user
+          const sevenDaysAgo = new Date()
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+          
+          const { data: foodLogs } = await supabaseAdmin
+            .from("food_logs")
+            .select("*")
+            .eq("user_id", effectiveUserId)
+            .gte("logged_at", sevenDaysAgo.toISOString())
+            .order("logged_at", { ascending: false })
+            .limit(50)
+
+          // Aggregate nutrition data by day
+          healthData.nutrition = aggregateNutritionByDay(foodLogs || [])
+          healthData.foodLogs = foodLogs || []
+        }
+      }
     }
 
     return healthData

@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useAuth, useEffectiveUser } from "@/context/auth-context"
+import { useAuth, useEffectiveUser, useApiHeaders } from "@/context/auth-context"
 
 interface FoodEntry {
   id: string
@@ -29,6 +29,7 @@ interface FoodEntry {
 export function RecentFoodAnalyses() {
   const { user } = useAuth()
   const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEntry, setSelectedEntry] = useState<FoodEntry | null>(null)
@@ -68,7 +69,9 @@ export function RecentFoodAnalyses() {
         return
       }
       
-      const response = await fetch(`/api/food-entries?limit=10&userId=${effectiveUser?.id}`)
+      const response = await fetch(`/api/food-entries?limit=10&userId=${effectiveUser?.id}`, {
+        headers: apiHeaders
+      })
       const data = await response.json()
       setFoodEntries(data.foodEntries || [])
     } catch (error) {

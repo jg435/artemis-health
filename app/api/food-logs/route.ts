@@ -73,6 +73,47 @@ export async function GET(request: Request) {
       return Response.json({ foodLogs: [] });
     }
 
+    // Determine effective user ID (client if trainer is viewing, otherwise authenticated user)
+    const viewingClientId = request.headers.get('x-viewing-client-id')
+    let effectiveUserId = user.id
+    let isTrainerViewing = false
+
+    if (user.user_type === 'trainer' && viewingClientId) {
+      console.log('=== TRAINER NUTRITION DEBUG ===');
+      console.log('Trainer viewing client nutrition:', {
+        trainer_id: user.id,
+        trainer_email: user.email,
+        client_id: viewingClientId,
+        headers: Object.fromEntries(request.headers.entries())
+      });
+      
+      // Verify trainer has permission to view this client
+      const { data: relationship, error: relationshipError } = await supabase
+        .from('trainer_clients')
+        .select('id')
+        .eq('trainer_id', user.id)
+        .eq('client_id', viewingClientId)
+        .eq('is_active', true)
+        .single()
+      
+      console.log('Trainer-client relationship query:', {
+        relationship,
+        error: relationshipError
+      });
+
+      if (relationship) {
+        effectiveUserId = viewingClientId
+        isTrainerViewing = true
+        console.log('Permission granted, querying nutrition for client:', effectiveUserId);
+      } else {
+        console.log('Permission denied for trainer-client access');
+        return Response.json(
+          { error: 'No permission to view this client\'s data' },
+          { status: 403 }
+        );
+      }
+    }
+
     // If it's a demo user, return empty array (they use demo endpoints)
     if (user.isDemo) {
       return Response.json({ foodLogs: [] });
@@ -88,10 +129,26 @@ export async function GET(request: Request) {
     const { data: foodLogs, error } = await supabase
       .from("food_logs")
       .select("*")
-      .eq("user_id", user.id) // Filter by user_id
+      .eq("user_id", effectiveUserId) // Use effective user ID (client if trainer viewing)
       .gte("logged_at", `${date}T00:00:00Z`)
       .lt("logged_at", `${date}T23:59:59Z`)
       .order("logged_at", { ascending: false })
+
+    if (isTrainerViewing) {
+      console.log('Food logs query result for trainer viewing client:', {
+        client_id: effectiveUserId,
+        date,
+        count: foodLogs?.length || 0,
+        error,
+        sample_entries: foodLogs?.slice(0, 2)?.map(log => ({
+          id: log.id,
+          user_id: log.user_id,
+          food_name: log.food_name,
+          logged_at: log.logged_at
+        }))
+      });
+      console.log('=== END TRAINER NUTRITION DEBUG ===');
+    }
 
     if (error) {
       console.error("Supabase error:", error)

@@ -20,7 +20,7 @@ import {
 import { Apple, Zap, Target, TrendingUp, Clock, Utensils } from "lucide-react"
 import { FoodLogger } from "./food-logger"
 import { RecentFoodAnalyses } from "./recent-food-analyses"
-import { useAuth, useEffectiveUser } from "@/context/auth-context"
+import { useAuth, useEffectiveUser, useApiHeaders } from "@/context/auth-context"
 
 interface NutritionData {
   totalCalories: number
@@ -53,6 +53,7 @@ interface NutritionData {
 export function NutritionDashboard() {
   const { user, isViewingAsTrainer } = useAuth()
   const effectiveUser = useEffectiveUser()
+  const apiHeaders = useApiHeaders()
   const [sessionFoodLogs, setSessionFoodLogs] = useState<any[]>([])
   const [nutritionData, setNutritionData] = useState<NutritionData>({
     totalCalories: 1800,
@@ -132,7 +133,9 @@ export function NutritionDashboard() {
         }
       } else {
         const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-        const response = await fetch(`/api/food-logs?date=${today}&userId=${effectiveUser?.id}`)
+        const response = await fetch(`/api/food-logs?date=${today}&userId=${effectiveUser?.id}`, {
+          headers: apiHeaders
+        })
         
         if (response.ok) {
           const data = await response.json()
@@ -267,7 +270,9 @@ export function NutritionDashboard() {
         const endpoint = effectiveUser?.isDemo 
           ? `/api/demo/nutrition?date=${dateString}`
           : `/api/food-logs?date=${dateString}&userId=${effectiveUser?.id}`
-        const response = await fetch(endpoint)
+        const response = await fetch(endpoint, {
+          headers: apiHeaders
+        })
         let dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 }
         
         if (response.ok) {

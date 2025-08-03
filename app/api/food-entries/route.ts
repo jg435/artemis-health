@@ -1,4 +1,4 @@
-import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { supabaseAdmin, isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { AuthService } from '@/lib/auth';
 
 export async function POST(request: Request) {
@@ -99,6 +99,46 @@ export async function GET(request: Request) {
       return Response.json({ foodEntries: [] });
     }
 
+    // Determine effective user ID (client if trainer is viewing, otherwise authenticated user)
+    const viewingClientId = request.headers.get('x-viewing-client-id')
+    let effectiveUserId = user.id
+    let isTrainerViewing = false
+
+    if (user.user_type === 'trainer' && viewingClientId) {
+      console.log('=== TRAINER FOOD ENTRIES DEBUG ===');
+      console.log('Trainer viewing client food entries:', {
+        trainer_id: user.id,
+        trainer_email: user.email,
+        client_id: viewingClientId
+      });
+      
+      // Verify trainer has permission to view this client
+      const { data: relationship, error: relationshipError } = await supabase
+        .from('trainer_clients')
+        .select('id')
+        .eq('trainer_id', user.id)
+        .eq('client_id', viewingClientId)
+        .eq('is_active', true)
+        .single()
+      
+      console.log('Trainer-client relationship check:', {
+        relationship,
+        error: relationshipError
+      });
+
+      if (relationship) {
+        effectiveUserId = viewingClientId
+        isTrainerViewing = true
+        console.log('Permission granted, querying food entries for client:', effectiveUserId);
+      } else {
+        console.log('Permission denied for trainer-client food entries access');
+        return Response.json(
+          { error: 'No permission to view this client\'s data' },
+          { status: 403 }
+        );
+      }
+    }
+
     // If it's a demo user, return empty array (they use demo endpoints)
     if (user.isDemo) {
       return Response.json({ foodEntries: [] });
@@ -115,7 +155,7 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from("food_logs")
       .select("*")
-      .eq("user_id", user.id) // Filter by user_id
+      .eq("user_id", effectiveUserId) // Use effective user ID (client if trainer viewing)
       .order("logged_at", { ascending: false });
 
     if (date) {
@@ -127,6 +167,23 @@ export async function GET(request: Request) {
     }
 
     const { data: rows, error } = await query.limit(limit);
+
+    if (isTrainerViewing) {
+      console.log('Food entries query result for trainer viewing client:', {
+        client_id: effectiveUserId,
+        count: rows?.length || 0,
+        limit,
+        date,
+        error,
+        sample_entries: rows?.slice(0, 2)?.map(entry => ({
+          id: entry.id,
+          user_id: entry.user_id,
+          food_name: entry.food_name,
+          logged_at: entry.logged_at
+        }))
+      });
+      console.log('=== END TRAINER FOOD ENTRIES DEBUG ===');
+    }
 
     if (error) {
       console.error("Supabase error:", error);
