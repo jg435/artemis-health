@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Bot, Send, Sparkles, AlertCircle, CheckCircle2, Database } from "lucide-react"
+import { Bot, Send, Sparkles, AlertCircle, CheckCircle2, Database, Mic } from "lucide-react"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { useAuth } from "@/context/auth-context"
+import { VoiceConversation } from "./voice-conversation"
 
 interface Message {
   id: string
@@ -33,7 +34,7 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
     {
       id: "1",
       content: isSupabaseConfigured()
-        ? `Hi ${user?.name || 'there'}! I'm your AI Health Coach capable of taking your data and answering any questions you have about it. \n\nHow are you feeling today? Is there anything specific about your health or fitness you'd like to discuss?`
+        ? `Hi ${user?.name || 'there'}! I'm your AI Health Coach capable of taking your data and answering any questions you have about it. \n\nHow are you feeling today? Is there anything specific about your health or fitness you'd like to discuss?\n\n💬 Use text chat below or 🎤 try voice conversation!`
         : `Hi ${user?.name || 'there'}! I'm your AI Health Coach. 👋\n\nI'm currently running in demo mode since your Supabase database isn't configured yet. I can still provide general health advice and answer questions about nutrition, fitness, and wellness!\n\nTo unlock personalized insights based on your actual health data, you'll need to set up your Supabase connection. What would you like to know about health and wellness?`,
       isUser: false,
       timestamp: new Date(),
@@ -43,6 +44,8 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
   ])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showVoiceMode, setShowVoiceMode] = useState(true)
+  const [healthData, setHealthData] = useState<any>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const quickQuestions = [
@@ -59,6 +62,33 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
+
+  // Fetch health data when component mounts
+  useEffect(() => {
+    const fetchHealthData = async () => {
+      try {
+        // This would fetch the same data the health coach API uses
+        const response = await fetch('/api/health-coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: 'get-health-context',
+            userId,
+            conversationHistory: []
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setHealthData(data.contextData)
+        }
+      } catch (error) {
+        console.log('Could not fetch health data for voice mode:', error)
+      }
+    }
+
+    fetchHealthData()
+  }, [userId])
 
   const sendMessage = async (content: string) => {
     if (!content.trim()) return
@@ -161,12 +191,21 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
               <Bot className="h-4 w-4 text-blue-600" />
             </AvatarFallback>
           </Avatar>
-          <div>
+          <div className="flex-1">
             <CardTitle className="text-lg">AI Health Coach</CardTitle>
             <CardDescription className="text-sm">
               {isSupabaseConfigured() ? "Personalized wellness guidance" : "Demo mode - General wellness advice"}
             </CardDescription>
           </div>
+          <Button
+            variant={showVoiceMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowVoiceMode(!showVoiceMode)}
+            className="ml-2"
+          >
+            <Mic className="h-4 w-4 mr-1" />
+            {showVoiceMode ? "Text" : "Voice"}
+          </Button>
         </div>
 
         {!isSupabaseConfigured() && (
@@ -180,16 +219,22 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-4 min-h-0">
-        {/* Messages */}
-        <div 
-          className="flex-1 overflow-y-scroll min-h-0 border border-gray-200 rounded-lg p-2 mb-4" 
-          ref={scrollAreaRef}
-          style={{ 
-            height: '350px',
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#cbd5e0 #f7fafc'
-          }}
-        >
+        {showVoiceMode ? (
+          /* Voice Mode */
+          <VoiceConversation healthData={healthData} />
+        ) : (
+          /* Text Chat Mode */
+          <>
+            {/* Messages */}
+            <div 
+              className="flex-1 overflow-y-scroll min-h-0 border border-gray-200 rounded-lg p-2 mb-4" 
+              ref={scrollAreaRef}
+              style={{ 
+                height: '350px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e0 #f7fafc'
+              }}
+            >
           <div className="space-y-4">
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
@@ -273,7 +318,9 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
           <Button type="submit" disabled={isLoading || !inputMessage.trim()}>
             <Send className="h-4 w-4" />
           </Button>
-        </form>
+            </form>
+          </>
+        )}
       </CardContent>
     </Card>
   )
