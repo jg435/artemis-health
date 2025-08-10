@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Bot, Send, Sparkles, AlertCircle, CheckCircle2, Database, Mic } from "lucide-react"
 import { isSupabaseConfigured } from "@/lib/supabase"
 import { useAuth } from "@/context/auth-context"
+import WorkoutPlan from "@/components/workout-plan"
+import NutritionPlan from "@/components/nutrition-plan"
 import { VoiceConversation } from "./voice-conversation"
 
 interface Message {
@@ -38,7 +40,7 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
         ? `Hi ${user?.name || 'there'}! I'm your AI Health Coach capable of taking your data and answering any questions you have about it. \n\nHow are you feeling today? Is there anything specific about your health or fitness you'd like to discuss?\n\n💬 Use text chat below or 🎤 try voice conversation!`
         : `Hi ${user?.name || 'there'}! I'm your AI Health Coach. 👋\n\nI'm currently running in demo mode since your Supabase database isn't configured yet. I can still provide general health advice and answer questions about nutrition, fitness, and wellness!\n\nTo unlock personalized insights based on your actual health data, you'll need to set up your Supabase connection. What would you like to know about health and wellness?`,
       isUser: false,
-      timestamp: new Date(),
+      timestamp: new Date("2024-01-01T00:00:00.000Z"), // Fixed timestamp to prevent hydration mismatch
       category: "general",
       priority: "low",
     },
@@ -257,6 +259,15 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
                     </div>
                   )}
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  {message.contextData && (message.contextData.plan || message.contextData.workoutPlan) && (
+                    <div className="mt-2">
+                      {message.contextData.plan?.type === "nutrition" ? (
+                        <NutritionPlan plan={message.contextData.plan} />
+                      ) : (
+                        <WorkoutPlan plan={message.contextData.plan ?? message.contextData.workoutPlan} />
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs opacity-70 mt-2">
                     {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>

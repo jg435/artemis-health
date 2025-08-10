@@ -14,6 +14,7 @@ import { MedicalLabResults } from "@/components/medical-lab-results"
 import { HealthCoachChat } from "@/components/health-coach-chat"
 import { HealthRecommendationsPanel } from "@/components/health-recommendations-panel"
 import { NutritionDashboard } from "@/components/nutrition-dashboard"
+import { ExerciseFormChecker } from "@/components/exercise-form-checker"
 import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
 import { GarminConnect } from "@/components/garmin-connect"
@@ -254,16 +255,7 @@ export default function HealthDashboard() {
               </TabsContent>
 
               <TabsContent value="form-fit" className="space-y-4">
-                <div className="text-center py-8">
-                  <h2 className="text-2xl font-bold mb-4">🏋️ Form Fit - Exercise Form Analysis</h2>
-                  <p className="text-muted-foreground mb-6">Upload videos or photos of your workout form to get AI-powered feedback on technique and recommendations for improvement.</p>
-                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-6 max-w-2xl mx-auto">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
-                      📹 Coming Soon: AI-powered form analysis for exercises like squats, deadlifts, bench press, and more. 
-                      Get real-time feedback on your technique to prevent injuries and maximize workout effectiveness.
-                    </p>
-                  </div>
-                </div>
+                <ExerciseFormChecker />
               </TabsContent>
 
             </Tabs>

@@ -11,6 +11,8 @@ import { useAuth, useApiHeaders } from "@/context/auth-context"
 import dynamic from 'next/dynamic'
 
 import { DataChart } from './data-chart'
+import { WorkoutPlan } from './workout-plan'
+import { NutritionPlan } from './nutrition-plan'
 
 interface VoiceConversationProps {
   healthData?: any
@@ -24,12 +26,21 @@ type ChartData = {
   id: string // Add unique ID for better key management
 }
 
+type PlanData = {
+  type: 'workout_plan' | 'nutrition_plan'
+  plan: any
+  title: string
+  id: string
+}
+
 export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversationProps) {
   const { user } = useAuth()
   const apiHeaders = useApiHeaders()
   const [error, setError] = useState<string | null>(null)
   const [displayedCharts, setDisplayedCharts] = useState<ChartData[]>([])
+  const [displayedPlans, setDisplayedPlans] = useState<PlanData[]>([])
   const chartIdCounter = useRef(0) // Counter for unique chart IDs
+  const planIdCounter = useRef(0) // Counter for unique plan IDs
 
   const conversation = useConversation({
     onConnect: () => {
@@ -54,6 +65,12 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
     return `chart-${Date.now()}-${chartIdCounter.current}`
   }
 
+  // Helper function to generate unique plan ID
+  const generatePlanId = () => {
+    planIdCounter.current += 1
+    return `plan-${Date.now()}-${planIdCounter.current}`
+  }
+
   // Function to get signed URL for secure connection
   const getSignedUrl = useCallback(async (): Promise<string> => {
     try {
@@ -76,13 +93,11 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
       recovery: healthData.recovery || [],
       sleep: healthData.sleep || [],
       foodLogs: healthData.foodLogs || [],
-      labResults: healthData.labResults || [],
       workout_count: healthData.workouts?.length || 0,
       recovery_count: healthData.recovery?.length || 0,
       sleep_count: healthData.sleep?.length || 0,
       food_entries_count: healthData.foodLogs?.length || 0,
-      lab_results_count: healthData.labResults?.length || 0,
-      summary: `User has ${healthData.workouts?.length || 0} workouts, ${healthData.recovery?.length || 0} recovery records, ${healthData.sleep?.length || 0} sleep records, ${healthData.foodLogs?.length || 0} food entries, and ${healthData.labResults?.length || 0} lab test results from recent data.`
+      summary: `User has ${healthData.workouts?.length || 0} workouts, ${healthData.recovery?.length || 0} recovery records, ${healthData.sleep?.length || 0} sleep records, and ${healthData.foodLogs?.length || 0} food entries from the past 30 days.`
     }
   }
 
@@ -156,15 +171,14 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
     try {
       setError(null)
       
-      // Fetch Whoop data, food logs, and lab results for past 30 days
-      console.log('🎤 Voice Coach: Fetching Whoop data, nutrition, and lab results (30 days)...')
+      // Fetch Whoop data and food logs for past 30 days
+      console.log('🎤 Voice Coach: Fetching Whoop data and nutrition (30 days)...')
       
-      const [workoutResponse, recoveryResponse, sleepResponse, foodLogsResponse, labResultsResponse] = await Promise.all([
+      const [workoutResponse, recoveryResponse, sleepResponse, foodLogsResponse] = await Promise.all([
         fetch('/api/whoop/workouts?days=30', { headers: apiHeaders }),
         fetch('/api/whoop/recovery?days=30', { headers: apiHeaders }),
         fetch('/api/whoop/sleep?days=30', { headers: apiHeaders }),
-        fetch('/api/food-logs', { headers: apiHeaders }),
-        fetch('/api/medical-records', { headers: apiHeaders })
+        fetch('/api/food-logs', { headers: apiHeaders })
       ])
       
       let healthData = {
@@ -172,7 +186,6 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
         recovery: [],
         sleep: [],
         foodLogs: [],
-        labResults: [],
         summary: "No health data available"
       }
 
@@ -205,15 +218,6 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
       } else {
         console.log('🎤 Voice Coach: No food logs available')
       }
-
-      // Process lab results data
-      if (labResultsResponse.ok) {
-        const data = await labResultsResponse.json()
-        healthData.labResults = data.labResults || data || []
-        console.log('🎤 Voice Coach: Lab results fetched:', healthData.labResults.length)
-      } else {
-        console.log('🎤 Voice Coach: No lab results available')
-      }
       
       // Format all data for the agent
       const formattedData = formatWhoopDataForAgent(healthData)
@@ -235,7 +239,6 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
           whoop_recovery_data: JSON.stringify(formattedData.recovery) || "Unable to fetch whoop data unfortunately. Please check your connection",
           whoop_sleep_data: JSON.stringify(formattedData.sleep) || "Unable to fetch whoop data unfortunately. Please check your connection",
           food_logs_data: JSON.stringify(formattedData.foodLogs) || "No food logs available",
-          lab_results_data: JSON.stringify(formattedData.labResults) || "No lab results available",
           user_name: user?.name || "User",
           timestamp: new Date().toISOString()
         },
@@ -361,6 +364,36 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
               console.error("Failed to fetch nutrition data:", error);
             }
           },
+          createWorkoutPlan: async (plan: string, plan_title: string) => {
+            console.log("Displaying workout plan:", { plan });
+                        
+            const newPlan: PlanData = {
+              type: 'workout_plan',
+              plan: plan.plan,
+              title: plan.plan_title || 'Workout Plan',
+              id: generatePlanId()
+            };
+            
+            setDisplayedPlans(prev => [...prev, newPlan]);
+          },
+          createNutritionPlan: async (plan: string, plan_title: string) => {
+            console.log("Displaying nutrition plan:", {plan});
+            
+            try {
+              // Parse the JSON string to get the structured plan object
+              const newPlan: PlanData = {
+              type: 'nutrition_plan',
+              plan: plan.plan,
+              title: plan.plan_title || 'Nutrition Plan',
+              id: generatePlanId()
+            };
+            
+            setDisplayedPlans(prev => [...prev, newPlan]);
+          } catch (error) {
+              console.error("Failed to parse nutrition plan JSON:", error);
+              setError("Failed to display nutrition plan - invalid format");
+            }
+          },
        }
       })
       
@@ -380,6 +413,10 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
     setDisplayedCharts(prev => prev.filter(chart => chart.id !== chartId))
   }
 
+  const removePlan = (planId: string) => {
+    setDisplayedPlans(prev => prev.filter(plan => plan.id !== planId))
+  }
+
   const renderChart = (chartData: ChartData) => {
     return (
       <DataChart 
@@ -390,13 +427,36 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
     )
   }
 
+  const renderPlan = (planData: PlanData) => {
+    return (
+      <div key={planData.id} className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-2 right-2 z-10 h-6 w-6 p-0"
+          onClick={() => removePlan(planData.id)}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+        {planData.type === 'workout_plan' || planData.type === 'nutrition_plan' ? (
+          <div className="p-4">
+            <h4 className="font-bold mb-2">{planData.title}</h4>
+            <p className="text-sm whitespace-pre-wrap">{planData.plan}</p>
+          </div>
+        ) : (
+          <NutritionPlan plan={planData.plan} />
+        )}
+      </div>
+    )
+  }
+
   const isConnected = conversation.status === 'connected'
   const isSpeaking = conversation.isSpeaking || false
   const isProcessing = conversation.status === 'connecting'
 
   return (
-    <Card className="flex flex-col h-full">
-      <CardHeader className="flex-shrink-0">
+    <Card>
+      <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Phone className="h-5 w-5" />
           Voice Conversation with AI Coach
@@ -405,7 +465,7 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
           Have a natural conversation about your health data with your AI coach
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
+      <CardContent className="space-y-4">
         {/* Status Indicators */}
         <div className="flex flex-wrap gap-2">
           <Badge variant={isConnected ? "default" : "secondary"}>
@@ -437,6 +497,7 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
               {"\n"}Is Speaking: {isSpeaking.toString()}
               {"\n"}User: {user?.name || 'Unknown'}
               {"\n"}Charts: {displayedCharts.length}
+              {"\n"}Plans: {displayedPlans.length}
             </pre>
           </details>
         )}
@@ -497,8 +558,8 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
 
         {/* Dynamic Charts Display */}
         {displayedCharts.length > 0 && (
-          <div className="space-y-4 flex-1 flex flex-col min-h-0">
-            <div className="flex items-center justify-between flex-shrink-0">
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">Health Data Visualizations ({displayedCharts.length})</h3>
               <Button 
                 variant="outline" 
@@ -509,9 +570,25 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
                 Clear All
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-4">
-              {displayedCharts.map((chartData) => renderChart(chartData))}
+            {displayedCharts.map((chartData) => renderChart(chartData))}
+          </div>
+        )}
+
+        {/* Dynamic Plans Display */}
+        {displayedPlans.length > 0 && (
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium">AI Generated Plans ({displayedPlans.length})</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setDisplayedPlans([])}
+                className="text-xs"
+              >
+                Clear All
+              </Button>
             </div>
+            {displayedPlans.map((planData) => renderPlan(planData))}
           </div>
         )}
 
@@ -547,6 +624,8 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
               <p>• <em>"Display my sleep analysis"</em></p>
               <p>• <em>"Show my recovery metrics"</em></p>
               <p>• <em>"Display my nutrition data"</em></p>
+              <p>• <em>"Create a workout plan for me"</em></p>
+              <p>• <em>"Generate a nutrition plan"</em></p>
               <p>• <em>"How can I improve my HRV?"</em></p>
               <p>• <em>"Analyze my recent workout performance"</em></p>
             </div>
