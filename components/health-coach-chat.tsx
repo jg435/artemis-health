@@ -183,7 +183,7 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
   }
 
   return (
-    <Card className="h-[600px] flex flex-col max-h-[600px]">
+    <Card className="flex flex-col h-full flex flex-col max-h-[600px]">
       <CardHeader className="pb-3">
         <div className="flex items-center space-x-2">
           <Avatar className="h-8 w-8">

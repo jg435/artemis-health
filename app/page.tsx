@@ -28,7 +28,7 @@ export default function HealthDashboard() {
   const { user, isLoading, login, logout } = useAuth()
   const effectiveUser = useEffectiveUser()
   const apiHeaders = useApiHeaders()
-  const [activeTab, setActiveTab] = useState("recovery")
+  const [activeTab, setActiveTab] = useState("insights")
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [showTrainerManagement, setShowTrainerManagement] = useState(false)
   const [connectionStates, setConnectionStates] = useState({
@@ -188,14 +188,19 @@ export default function HealthDashboard() {
 
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto gap-1 p-2">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto gap-1 p-2">
+                <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
                 <TabsTrigger value="recovery" className="h-10">Recovery</TabsTrigger>
                 <TabsTrigger value="sleep" className="h-10">Sleep</TabsTrigger>
                 <TabsTrigger value="workouts" className="h-10">Workouts</TabsTrigger>
-                <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger> {/* ← CLICK HERE */}
+                <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger>
                 <TabsTrigger value="lab results" className="h-10">Lab Results</TabsTrigger>
-                <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
+                <TabsTrigger value="form-fit" className="h-10">Form Fit</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="insights" className="space-y-4">
+                <HealthCoachChat onNavigateToTab={setActiveTab} />
+              </TabsContent>
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
@@ -248,13 +253,15 @@ export default function HealthDashboard() {
                 <MedicalLabResults />
               </TabsContent>
 
-              <TabsContent value="insights" className="space-y-4">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="space-y-4">
-                    <HealthRecommendationsPanel />
-                  </div>
-                  <div>
-                    <HealthCoachChat onNavigateToTab={setActiveTab} />
+              <TabsContent value="form-fit" className="space-y-4">
+                <div className="text-center py-8">
+                  <h2 className="text-2xl font-bold mb-4">🏋️ Form Fit - Exercise Form Analysis</h2>
+                  <p className="text-muted-foreground mb-6">Upload videos or photos of your workout form to get AI-powered feedback on technique and recommendations for improvement.</p>
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-6 max-w-2xl mx-auto">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      📹 Coming Soon: AI-powered form analysis for exercises like squats, deadlifts, bench press, and more. 
+                      Get real-time feedback on your technique to prevent injuries and maximize workout effectiveness.
+                    </p>
                   </div>
                 </div>
               </TabsContent>

@@ -76,11 +76,13 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
       recovery: healthData.recovery || [],
       sleep: healthData.sleep || [],
       foodLogs: healthData.foodLogs || [],
+      labResults: healthData.labResults || [],
       workout_count: healthData.workouts?.length || 0,
       recovery_count: healthData.recovery?.length || 0,
       sleep_count: healthData.sleep?.length || 0,
       food_entries_count: healthData.foodLogs?.length || 0,
-      summary: `User has ${healthData.workouts?.length || 0} workouts, ${healthData.recovery?.length || 0} recovery records, ${healthData.sleep?.length || 0} sleep records, and ${healthData.foodLogs?.length || 0} food entries from the past 30 days.`
+      lab_results_count: healthData.labResults?.length || 0,
+      summary: `User has ${healthData.workouts?.length || 0} workouts, ${healthData.recovery?.length || 0} recovery records, ${healthData.sleep?.length || 0} sleep records, ${healthData.foodLogs?.length || 0} food entries, and ${healthData.labResults?.length || 0} lab test results from recent data.`
     }
   }
 
@@ -154,14 +156,15 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
     try {
       setError(null)
       
-      // Fetch Whoop data and food logs for past 30 days
-      console.log('🎤 Voice Coach: Fetching Whoop data and nutrition (30 days)...')
+      // Fetch Whoop data, food logs, and lab results for past 30 days
+      console.log('🎤 Voice Coach: Fetching Whoop data, nutrition, and lab results (30 days)...')
       
-      const [workoutResponse, recoveryResponse, sleepResponse, foodLogsResponse] = await Promise.all([
+      const [workoutResponse, recoveryResponse, sleepResponse, foodLogsResponse, labResultsResponse] = await Promise.all([
         fetch('/api/whoop/workouts?days=30', { headers: apiHeaders }),
         fetch('/api/whoop/recovery?days=30', { headers: apiHeaders }),
         fetch('/api/whoop/sleep?days=30', { headers: apiHeaders }),
-        fetch('/api/food-logs', { headers: apiHeaders })
+        fetch('/api/food-logs', { headers: apiHeaders }),
+        fetch('/api/medical-records', { headers: apiHeaders })
       ])
       
       let healthData = {
@@ -169,6 +172,7 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
         recovery: [],
         sleep: [],
         foodLogs: [],
+        labResults: [],
         summary: "No health data available"
       }
 
@@ -201,6 +205,15 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
       } else {
         console.log('🎤 Voice Coach: No food logs available')
       }
+
+      // Process lab results data
+      if (labResultsResponse.ok) {
+        const data = await labResultsResponse.json()
+        healthData.labResults = data.labResults || data || []
+        console.log('🎤 Voice Coach: Lab results fetched:', healthData.labResults.length)
+      } else {
+        console.log('🎤 Voice Coach: No lab results available')
+      }
       
       // Format all data for the agent
       const formattedData = formatWhoopDataForAgent(healthData)
@@ -222,6 +235,7 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
           whoop_recovery_data: JSON.stringify(formattedData.recovery) || "Unable to fetch whoop data unfortunately. Please check your connection",
           whoop_sleep_data: JSON.stringify(formattedData.sleep) || "Unable to fetch whoop data unfortunately. Please check your connection",
           food_logs_data: JSON.stringify(formattedData.foodLogs) || "No food logs available",
+          lab_results_data: JSON.stringify(formattedData.labResults) || "No lab results available",
           user_name: user?.name || "User",
           timestamp: new Date().toISOString()
         },
@@ -381,8 +395,8 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
   const isProcessing = conversation.status === 'connecting'
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="flex flex-col h-full">
+      <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center gap-2">
           <Phone className="h-5 w-5" />
           Voice Conversation with AI Coach
@@ -391,7 +405,7 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
           Have a natural conversation about your health data with your AI coach
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
         {/* Status Indicators */}
         <div className="flex flex-wrap gap-2">
           <Badge variant={isConnected ? "default" : "secondary"}>
@@ -483,8 +497,8 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
 
         {/* Dynamic Charts Display */}
         {displayedCharts.length > 0 && (
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            <div className="flex items-center justify-between">
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between flex-shrink-0">
               <h3 className="text-lg font-medium">Health Data Visualizations ({displayedCharts.length})</h3>
               <Button 
                 variant="outline" 
@@ -495,7 +509,9 @@ export function VoiceConversation({ healthData, onNavigateToTab }: VoiceConversa
                 Clear All
               </Button>
             </div>
-            {displayedCharts.map((chartData) => renderChart(chartData))}
+            <div className="flex-1 overflow-y-auto space-y-4">
+              {displayedCharts.map((chartData) => renderChart(chartData))}
+            </div>
           </div>
         )}
 
