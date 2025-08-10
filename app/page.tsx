@@ -14,6 +14,7 @@ import { MedicalLabResults } from "@/components/medical-lab-results"
 import { HealthCoachChat } from "@/components/health-coach-chat"
 import { HealthRecommendationsPanel } from "@/components/health-recommendations-panel"
 import { NutritionDashboard } from "@/components/nutrition-dashboard"
+import { ExerciseFormChecker } from "@/components/exercise-form-checker"
 import { WhoopConnect } from "@/components/whoop-connect"
 import { OuraConnect } from "@/components/oura-connect"
 import { GarminConnect } from "@/components/garmin-connect"
@@ -28,7 +29,7 @@ export default function HealthDashboard() {
   const { user, isLoading, login, logout } = useAuth()
   const effectiveUser = useEffectiveUser()
   const apiHeaders = useApiHeaders()
-  const [activeTab, setActiveTab] = useState("recovery")
+  const [activeTab, setActiveTab] = useState("insights")
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [showTrainerManagement, setShowTrainerManagement] = useState(false)
   const [connectionStates, setConnectionStates] = useState({
@@ -188,14 +189,19 @@ export default function HealthDashboard() {
 
             {/* Main Content Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto gap-1 p-2">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto gap-1 p-2">
+                <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
                 <TabsTrigger value="recovery" className="h-10">Recovery</TabsTrigger>
                 <TabsTrigger value="sleep" className="h-10">Sleep</TabsTrigger>
                 <TabsTrigger value="workouts" className="h-10">Workouts</TabsTrigger>
-                <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger> {/* ← CLICK HERE */}
+                <TabsTrigger value="nutrition" className="h-10">🍎 Nutrition</TabsTrigger>
                 <TabsTrigger value="lab results" className="h-10">Lab Results</TabsTrigger>
-                <TabsTrigger value="insights" className="h-10">AI Coach</TabsTrigger>
+                <TabsTrigger value="form-fit" className="h-10">Form Fit</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="insights" className="space-y-4">
+                <HealthCoachChat onNavigateToTab={setActiveTab} />
+              </TabsContent>
 
               <TabsContent value="recovery" className="space-y-4">
                 <div className="space-y-4">
@@ -248,15 +254,8 @@ export default function HealthDashboard() {
                 <MedicalLabResults />
               </TabsContent>
 
-              <TabsContent value="insights" className="space-y-4">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="space-y-4">
-                    <HealthRecommendationsPanel />
-                  </div>
-                  <div>
-                    <HealthCoachChat />
-                  </div>
-                </div>
+              <TabsContent value="form-fit" className="space-y-4">
+                <ExerciseFormChecker />
               </TabsContent>
 
             </Tabs>

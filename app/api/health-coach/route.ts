@@ -5,6 +5,69 @@ export async function POST(request: Request) {
   try {
     const { message, userId, conversationHistory } = await request.json()
 
+    // Detect if the user is explicitly requesting a workout or nutrition/meal plan.
+    const _msg = (message || "").toString().toLowerCase()
+    const wantsWorkoutPlan =
+      _msg.includes("workout plan") ||
+      _msg.includes("create a workout") ||
+      _msg.includes("generate a workout") ||
+      _msg.includes("plan my workouts") ||
+      _msg.includes("create a training plan") ||
+      _msg.includes("generate a training plan") ||
+      _msg.includes("training plan")
+    const wantsNutritionPlan =
+      _msg.includes("meal plan") ||
+      _msg.includes("food plan") ||
+      _msg.includes("what should i eat") ||
+      _msg.includes("generate meal") ||
+      _msg.includes("create meal plan") ||
+      _msg.includes("meal planning") ||
+      _msg.includes("nutrition plan")
+
+    if (wantsWorkoutPlan || wantsNutritionPlan) {
+      try {
+        const base = process.env.BASE_URL || ""
+        const type = wantsNutritionPlan ? "nutrition" : "workout"
+        // Basic defaults; you could parse more details from the message if desired.
+        const body: any = {
+          type,
+          fitnessLevel: "beginner",
+          goals: "general fitness",
+          availableTime: 45,
+          preferences: "",
+          daysPerWeek: 3,
+          calorieTarget: 2000,
+          dietPreferences: "",
+          userId,
+        }
+
+        const wpResp = await fetch(`${base}/api/ai-plan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+
+        if (wpResp.ok) {
+          const wpJson = await wpResp.json()
+          return Response.json({
+            response: `I've created a personalized ${type} plan for you — see below.`,
+            category: type === "nutrition" ? "nutrition" : "fitness",
+            priority: "low",
+            contextData: {
+              plan: wpJson.plan ?? wpJson.planText ?? null,
+              hasHealthData: Object.keys(await fetchUserHealthData(request)).length > 0,
+              dataPoints: {},
+            },
+          })
+        } else {
+          const errText = await wpResp.text()
+          console.error("AI plan endpoint returned error:", errText)
+        }
+      } catch (err) {
+        console.error("Error generating AI plan:", err)
+      }
+    }
+
     if (!isSupabaseConfigured()) {
       return Response.json({
         response:
