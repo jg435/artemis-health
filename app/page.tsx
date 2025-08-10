@@ -254,7 +254,7 @@ export default function HealthDashboard() {
                     <HealthRecommendationsPanel />
                   </div>
                   <div>
-                    <HealthCoachChat />
+                    <HealthCoachChat onNavigateToTab={setActiveTab} />
                   </div>
                 </div>
               </TabsContent>

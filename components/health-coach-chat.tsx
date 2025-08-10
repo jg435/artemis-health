@@ -26,9 +26,10 @@ interface Message {
 
 interface HealthCoachChatProps {
   userId?: string
+  onNavigateToTab?: (tab: string) => void
 }
 
-export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000" }: HealthCoachChatProps) {
+export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000", onNavigateToTab }: HealthCoachChatProps) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -221,7 +222,7 @@ export function HealthCoachChat({ userId = "550e8400-e29b-41d4-a716-446655440000
       <CardContent className="flex-1 flex flex-col p-4 min-h-0">
         {showVoiceMode ? (
           /* Voice Mode */
-          <VoiceConversation healthData={healthData} />
+          <VoiceConversation healthData={healthData} onNavigateToTab={onNavigateToTab} />
         ) : (
           /* Text Chat Mode */
           <>
